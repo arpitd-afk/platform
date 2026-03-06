@@ -1,0 +1,215 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── CSS Variables ────────────────────────────────────────── */
+:root {
+  --bg-primary: #0f0e0b;
+  --bg-card: #1a1710;
+  --bg-hover: #201d14;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-hover: rgba(255, 255, 255, 0.14);
+  --gold: #d4af37;
+  --gold-light: #f0d060;
+  --text-primary: #f5f0e8;
+  --text-secondary: #a09880;
+  --text-muted: #6b6050;
+  --success: #4ade80;
+  --warning: #fbbf24;
+  --error: #f87171;
+  --info: #60a5fa;
+}
+
+/* ─── Base ──────────────────────────────────────────────────── */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: #0f0e0b;
+  color: #f5f0e8;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ─── Scrollbar ─────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: #141210;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(212, 175, 55, 0.3);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(212, 175, 55, 0.5);
+}
+
+/* ─── Component Utilities ───────────────────────────────────── */
+@layer components {
+  /* Cards */
+  .card {
+    @apply bg-[#1A1710] border border-white/[0.08] rounded-xl;
+  }
+  .card-hover {
+    @apply card transition-all duration-200 hover:border-white/[0.14] hover:bg-[#201D14] cursor-pointer;
+  }
+
+  /* Buttons */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 bg-[#D4AF37] text-[#0F0E0B] font-semibold
+           px-5 py-2.5 rounded-lg text-sm hover:bg-[#F0D060] active:scale-95
+           transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 bg-white/[0.06] text-[#F5F0E8] font-medium
+           px-5 py-2.5 rounded-lg text-sm border border-white/[0.10]
+           hover:bg-white/[0.10] hover:border-white/[0.18] active:scale-95
+           transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-2 bg-red-500/10 text-red-400 font-medium
+           px-5 py-2.5 rounded-lg text-sm border border-red-500/20
+           hover:bg-red-500/20 transition-all duration-150;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 text-[#A09880] font-medium
+           px-3 py-2 rounded-lg text-sm hover:bg-white/[0.06] hover:text-[#F5F0E8]
+           transition-all duration-150;
+  }
+  .btn-icon {
+    @apply w-9 h-9 flex items-center justify-center rounded-lg text-[#6B6050]
+           hover:bg-white/[0.06] hover:text-[#A09880] transition-all duration-150;
+  }
+
+  /* Form Inputs */
+  .input {
+    @apply w-full bg-white/[0.05] border border-white/[0.10] rounded-lg px-4 py-2.5
+           text-[#F5F0E8] text-sm placeholder:text-[#6B6050]
+           focus:outline-none focus:border-[#D4AF37]/50 focus:ring-1 focus:ring-[#D4AF37]/25
+           transition-all duration-150;
+  }
+  .label {
+    @apply block text-sm font-medium text-[#A09880] mb-1.5;
+  }
+  .form-error {
+    @apply text-red-400 text-xs mt-1;
+  }
+
+  /* Badges */
+  .badge {
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+  .badge-gold {
+    @apply badge bg-[#D4AF37]/15 text-[#D4AF37];
+  }
+  .badge-green {
+    @apply badge bg-green-500/15 text-green-400;
+  }
+  .badge-red {
+    @apply badge bg-red-500/15   text-red-400;
+  }
+  .badge-blue {
+    @apply badge bg-blue-500/15  text-blue-400;
+  }
+  .badge-gray {
+    @apply badge bg-white/[0.07] text-[#A09880];
+  }
+
+  /* Navigation */
+  .nav-item {
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-[#A09880] text-sm font-medium
+           hover:bg-white/[0.05] hover:text-[#F5F0E8] transition-all duration-150 cursor-pointer;
+  }
+  .nav-item-active {
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
+           bg-[#D4AF37]/10 text-[#D4AF37] cursor-pointer;
+  }
+
+  /* Table */
+  .th {
+    @apply text-xs font-semibold text-[#6B6050] uppercase tracking-wider px-4 py-3 text-left;
+  }
+  .td {
+    @apply px-4 py-3.5 text-sm text-[#F5F0E8];
+  }
+  .tr {
+    @apply border-b border-white/[0.05] hover:bg-white/[0.02] transition-colors;
+  }
+
+  /* Stat Card */
+  .stat-card {
+    @apply card p-5 flex flex-col gap-1;
+  }
+
+  /* Section */
+  .page-title {
+    @apply text-2xl font-display font-bold text-[#F5F0E8];
+  }
+  .section-title {
+    @apply text-lg font-semibold text-[#F5F0E8];
+  }
+
+  /* Skeleton loader */
+  .skeleton {
+    @apply bg-white/[0.06] rounded animate-pulse;
+  }
+
+  /* Divider */
+  .divider {
+    @apply border-t border-white/[0.07];
+  }
+
+  /* Gradient text */
+  .text-gold-gradient {
+    background: linear-gradient(135deg, #d4af37 0%, #f0d060 50%, #d4af37 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Status dots */
+  .status-online {
+    @apply w-2 h-2 bg-green-400 rounded-full;
+  }
+  .status-offline {
+    @apply w-2 h-2 bg-[#6B6050] rounded-full;
+  }
+  .status-live {
+    @apply w-2 h-2 bg-red-400 rounded-full animate-ping-slow;
+  }
+
+  /* Progress bar */
+  .progress-bar {
+    @apply h-1.5 bg-white/[0.07] rounded-full overflow-hidden;
+  }
+  .progress-fill {
+    @apply h-full bg-[#D4AF37] rounded-full transition-all duration-500;
+  }
+}
+
+/* ─── Shimmer Effect ─────────────────────────────────────────── */
+.shimmer-bg {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.03) 25%,
+    rgba(255, 255, 255, 0.07) 50%,
+    rgba(255, 255, 255, 0.03) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* ─── Chess board overrides ─────────────────────────────────── */
+.board-container {
+  border-radius: 12px;
+  overflow: hidden;
+}
