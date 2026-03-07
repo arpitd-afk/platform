@@ -44,14 +44,24 @@ usersRouter.get('/:id', async (req, res) => {
 
 usersRouter.put('/:id', async (req, res) => {
   try {
-    if (req.user.id !== req.params.id && !['super_admin','academy_admin'].includes(req.user.role)) {
-      return res.status(403).json({ message: 'Not authorized' });
-    }
-    const { name, bio, phone } = req.body;
-    await query('UPDATE users SET name=COALESCE($1,name), bio=COALESCE($2,bio), updated_at=NOW() WHERE id=$3',
-      [name, bio, req.params.id]);
-    res.json({ message: 'Updated' });
-  } catch { res.status(500).json({ message: 'Update failed' }); }
+    const isSelf = req.user.id === req.params.id;
+    const isAdmin = ['super_admin','academy_admin'].includes(req.user.role);
+    if (!isSelf && !isAdmin) return res.status(403).json({ message: 'Not authorized' });
+
+    const { name, bio, phone, is_active, batch_id } = req.body;
+    const fields = [];
+    const vals = [];
+    if (name !== undefined)      { vals.push(name);      fields.push(`name=$${vals.length}`); }
+    if (bio !== undefined)       { vals.push(bio);       fields.push(`bio=$${vals.length}`); }
+    if (phone !== undefined)     { vals.push(phone);     fields.push(`phone=$${vals.length}`); }
+    if (is_active !== undefined && isAdmin) { vals.push(is_active); fields.push(`is_active=$${vals.length}`); }
+    if (batch_id !== undefined && isAdmin)  { vals.push(batch_id);  fields.push(`batch_id=$${vals.length}`); }
+    if (fields.length === 0) return res.json({ message: 'Nothing to update' });
+    vals.push(req.params.id);
+    await query(`UPDATE users SET ${fields.join(',')}, updated_at=NOW() WHERE id=$${vals.length}`, vals);
+    const updated = await query('SELECT id, name, email, role, rating, avatar, is_active FROM users WHERE id=$1', [req.params.id]);
+    res.json({ message: 'Updated', user: updated.rows[0] });
+  } catch (e) { console.error(e); res.status(500).json({ message: 'Update failed' }); }
 });
 
 usersRouter.get('/:id/stats', async (req, res) => {

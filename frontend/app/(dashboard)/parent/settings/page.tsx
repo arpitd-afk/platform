@@ -1,40 +1,69 @@
 'use client'
 import { useState } from 'react'
-import { Settings, Save, Bell, Shield, User } from 'lucide-react'
+import { useAuth } from '@/lib/auth-context'
+import { useUpdateUser } from '@/lib/hooks'
+import Avatar from '@/components/shared/Avatar'
+import { Settings, Save, Loader2, Bell } from 'lucide-react'
+import toast from 'react-hot-toast'
+
 export default function ParentSettingsPage() {
-  const [n1,sn1]=useState(true),[n2,sn2]=useState(true),[n3,sn3]=useState(false)
-  const Toggle=({v,set}:{v:boolean,set:(b:boolean)=>void})=>(
-    <button onClick={()=>set(!v)} className={`w-11 h-6 rounded-full transition-all relative ${v?'bg-[#D4AF37]':'bg-white/[0.10]'}`}><span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${v?'left-6':'left-1'}`}/></button>
-  )
+  const { user, updateUser } = useAuth()
+  const update = useUpdateUser()
+  const [name, setName] = useState(user?.name || '')
+  const [phone, setPhone] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [classReminders, setClassReminders] = useState(true)
+  const [progressReports, setProgressReports] = useState(true)
+
+  const handleSave = async () => {
+    if (!user?.id) return
+    setSaving(true)
+    try {
+      await update.mutateAsync({ id: user.id, data: { name } })
+      updateUser({ name })
+    } catch { toast.error('Failed') }
+    finally { setSaving(false) }
+  }
+
   return (
-    <div className="space-y-5 animate-fade-in max-w-2xl">
-      <h1 className="page-title flex items-center gap-2"><Settings size={22} className="text-[#A09880]"/>Settings</h1>
-      <div className="card p-6 space-y-4">
-        <h3 className="section-title flex items-center gap-2"><User size={16} className="text-[#A78BFA]"/>Profile</h3>
-        <div className="grid grid-cols-2 gap-4">
-          <div><label className="label">Full Name</label><input className="input" defaultValue="Parent User"/></div>
-          <div><label className="label">Email</label><input className="input" defaultValue="parent@demo.com"/></div>
-          <div><label className="label">Phone</label><input className="input" defaultValue="+91 98765 43210"/></div>
-          <div><label className="label">City</label><input className="input" defaultValue="Mumbai"/></div>
+    <div className="max-w-2xl mx-auto space-y-5 animate-fade-in">
+      <h1 className="page-title flex items-center gap-2"><Settings size={22} style={{ color: 'var(--amber)' }} />Settings</h1>
+
+      <div className="card p-6 space-y-5">
+        <h3 className="section-title">Profile</h3>
+        <div className="flex items-center gap-5">
+          <Avatar user={user} size="lg" editable onUpdate={avatar => updateUser({ avatar })} />
+          <div>
+            <p className="font-medium text-sm">Profile Photo</p>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Click to upload</p>
+          </div>
         </div>
-        <button className="btn-primary flex items-center gap-2"><Save size={15}/>Save</button>
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div><label className="label">Full Name</label><input className="input" value={name} onChange={e => setName(e.target.value)} /></div>
+          <div><label className="label">Email</label><input className="input" value={user?.email || ''} disabled /></div>
+          <div><label className="label">Phone</label><input className="input" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+91 98765 43210" /></div>
+        </div>
+        <button onClick={handleSave} disabled={saving} className="btn-primary flex items-center gap-2">
+          {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+          {saving ? 'Saving...' : 'Save Changes'}
+        </button>
       </div>
-      <div className="card p-6 space-y-3">
-        <h3 className="section-title flex items-center gap-2"><Bell size={16} className="text-[#D4AF37]"/>Notifications</h3>
+
+      <div className="card p-6 space-y-4">
+        <h3 className="section-title flex items-center gap-2"><Bell size={16} style={{ color: 'var(--amber)' }} />Notifications</h3>
         {[
-          {l:'Email class reminders 1 hour before',v:n1,set:sn1},
-          {l:'SMS alerts when child misses class',v:n2,set:sn2},
-          {l:'Weekly progress report email',v:n3,set:sn3},
-        ].map((item,i)=>(
-          <div key={i} className="flex items-center justify-between py-2.5 border-b border-white/[0.05] last:border-0">
-            <span className="text-sm text-[#A09880]">{item.l}</span>
-            <Toggle v={item.v} set={item.set}/>
+          { label: 'Class reminders (1 hour before)', value: classReminders, set: setClassReminders },
+          { label: 'Weekly progress reports', value: progressReports, set: setProgressReports },
+        ].map(item => (
+          <div key={item.label} className="flex items-center justify-between py-2.5" style={{ borderBottom: '1px solid var(--border)' }}>
+            <span className="text-sm" style={{ color: 'var(--text-mid)' }}>{item.label}</span>
+            <button onClick={() => item.set(!item.value)}
+              className="relative w-11 h-6 rounded-full transition-all"
+              style={{ background: item.value ? 'var(--amber)' : 'var(--border-md)' }}>
+              <div className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all" style={{ left: item.value ? 22 : 2 }} />
+            </button>
           </div>
         ))}
-      </div>
-      <div className="card p-6 space-y-3">
-        <h3 className="section-title flex items-center gap-2"><Shield size={16} className="text-[#4ADE80]"/>Security</h3>
-        <button className="btn-secondary text-sm">Change Password</button>
       </div>
     </div>
   )

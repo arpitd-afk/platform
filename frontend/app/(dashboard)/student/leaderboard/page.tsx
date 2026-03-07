@@ -1,63 +1,82 @@
 'use client'
-import { Award, TrendingUp, TrendingDown, Minus } from 'lucide-react'
-
-const LEADERBOARD = [
-  { rank:1,  prev:1,  name:'Sia Kapoor',    rating:1680, wins:42, streak:8,  academy:'Demo Chess Academy', you:false },
-  { rank:2,  prev:3,  name:'Rohit Verma',   rating:1540, wins:38, streak:5,  academy:'Demo Chess Academy', you:false },
-  { rank:3,  prev:2,  name:'Dev Sharma',    rating:1490, wins:35, streak:3,  academy:'Demo Chess Academy', you:false },
-  { rank:4,  prev:5,  name:'Kiran Kumar',   rating:1120, wins:24, streak:2,  academy:'Demo Chess Academy', you:false },
-  { rank:5,  prev:4,  name:'Aanya Singh',   rating:990,  wins:20, streak:4,  academy:'Demo Chess Academy', you:false },
-  { rank:6,  prev:7,  name:'Arjun Sharma',  rating:1210, wins:22, streak:12, academy:'Demo Chess Academy', you:true  },
-  { rank:7,  prev:6,  name:'Priya Nair',    rating:780,  wins:14, streak:1,  academy:'Demo Chess Academy', you:false },
-  { rank:8,  prev:8,  name:'Meera Patel',   rating:650,  wins:8,  streak:0,  academy:'Demo Chess Academy', you:false },
-]
+import { useUsers } from '@/lib/hooks'
+import { useAuth } from '@/lib/auth-context'
+import { PageLoading } from '@/components/shared/States'
+import Avatar from '@/components/shared/Avatar'
+import { Award, Crown, Star, TrendingUp } from 'lucide-react'
 
 export default function LeaderboardPage() {
-  const me = LEADERBOARD.find(p=>p.you)
-  const RankBadge = ({rank}:{rank:number}) => rank===1?<span className="text-2xl">🥇</span>:rank===2?<span className="text-2xl">🥈</span>:rank===3?<span className="text-2xl">🥉</span>:<span className="font-bold text-[#6B6050]">#{rank}</span>
-  const ChangeIcon = ({curr,prev}:{curr:number,prev:number}) => curr<prev?<TrendingUp size={13} className="text-green-400"/>:curr>prev?<TrendingDown size={13} className="text-red-400"/>:<Minus size={13} className="text-[#6B6050]"/>
+  const { user } = useAuth()
+  const { data: students = [], isLoading } = useUsers({ role: 'student' })
+
+  if (isLoading) return <PageLoading />
+
+  const ranked = [...students].sort((a: any, b: any) => (b.rating || 1200) - (a.rating || 1200))
+
+  const MEDAL = ['🥇', '🥈', '🥉']
 
   return (
     <div className="space-y-5 animate-fade-in">
-      <div>
-        <h1 className="page-title flex items-center gap-2"><Award size={22} className="text-[#D4AF37]"/>Leaderboard</h1>
-        <p className="text-[#6B6050] text-sm mt-1">Academy rankings — July 2024</p>
-      </div>
-      {me && (
-        <div className="card p-5 border-[#D4AF37]/40 bg-[#D4AF37]/5">
-          <div className="text-xs text-[#D4AF37] font-semibold mb-2">YOUR RANKING</div>
-          <div className="flex items-center gap-4">
-            <div className="font-display text-4xl font-bold text-[#D4AF37]">#{me.rank}</div>
-            <div>
-              <div className="font-semibold">{me.name}</div>
-              <div className="text-sm text-[#A09880]">Rating: {me.rating} · {me.wins} wins · 🔥 {me.streak} streak</div>
-            </div>
-          </div>
+      <h1 className="page-title flex items-center gap-2"><Award size={22} style={{ color: 'var(--amber)' }} />Leaderboard</h1>
+
+      {ranked.length > 2 && (
+        <div className="grid grid-cols-3 gap-4">
+          {[ranked[1], ranked[0], ranked[2]].map((s: any, i) => {
+            const podium = [1, 0, 2]
+            const heights = ['h-28', 'h-36', 'h-24']
+            const colors = ['#C0C0C0', '#C8961E', '#CD7F32']
+            return (
+              <div key={s?.id} className="card p-4 flex flex-col items-center gap-2 text-center">
+                <span className="text-2xl">{MEDAL[podium[i]]}</span>
+                <Avatar user={s} size="md" />
+                <div className="font-semibold text-sm" style={{ color: 'var(--text)' }}>{s?.name}</div>
+                <div className="flex items-center gap-1 text-sm font-bold" style={{ color: colors[podium[i]] }}>
+                  <Star size={12} />{s?.rating || 1200}
+                </div>
+              </div>
+            )
+          })}
         </div>
       )}
+
       <div className="card overflow-hidden">
-        <div className="px-5 py-4 border-b border-white/[0.07] flex items-center justify-between">
+        <div className="px-5 py-3" style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-subtle)' }}>
           <h3 className="section-title">Full Rankings</h3>
-          <span className="badge-gray text-xs">{LEADERBOARD.length} students</span>
         </div>
         <table className="w-full">
-          <thead><tr className="border-b border-white/[0.07]"><th className="th w-20 text-center">Rank</th><th className="th">Student</th><th className="th text-center">Rating</th><th className="th text-center">Wins</th><th className="th text-center">Streak</th><th className="th text-center">Change</th></tr></thead>
+          <thead><tr>
+            <th className="th w-12">#</th>
+            <th className="th">Student</th>
+            <th className="th text-center">Rating</th>
+            <th className="th text-center hidden sm:table-cell">Games</th>
+            <th className="th text-center hidden sm:table-cell">Win Rate</th>
+          </tr></thead>
           <tbody>
-            {LEADERBOARD.map(p=>(
-              <tr key={p.rank} className={`tr ${p.you?'bg-[#D4AF37]/5':''}`}>
-                <td className="td text-center w-16"><RankBadge rank={p.rank}/></td>
+            {ranked.map((s: any, i) => (
+              <tr key={s.id} className="tr" style={s.id === user?.id ? { background: 'rgba(200,150,30,0.05)' } : {}}>
+                <td className="td text-center">
+                  {i < 3
+                    ? <span className="text-lg">{MEDAL[i]}</span>
+                    : <span className="text-sm font-mono" style={{ color: 'var(--text-muted)' }}>{i + 1}</span>}
+                </td>
                 <td className="td">
                   <div className="flex items-center gap-3">
-                    <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm ${p.you?'bg-[#D4AF37]/20 text-[#D4AF37]':'bg-white/[0.07] text-[#A09880]'}`}>{p.name[0]}</div>
+                    <Avatar user={s} size="sm" />
                     <div>
-                      <span className={`font-medium text-sm ${p.you?'text-[#D4AF37]':''}`}>{p.name} {p.you&&<span className="text-xs ml-1 badge-gold">You</span>}</span>
+                      <div className="font-medium text-sm" style={{ color: 'var(--text)' }}>
+                        {s.name}{s.id === user?.id && <span className="ml-2 badge badge-gold text-[10px]">You</span>}
+                      </div>
+                      <div className="text-xs" style={{ color: 'var(--text-muted)' }}>{s.batch_name || '—'}</div>
                     </div>
                   </div>
                 </td>
-                <td className="td text-center font-mono font-bold">{p.rating}</td>
-                <td className="td text-center">{p.wins}</td>
-                <td className="td text-center">{p.streak>0?<span className="text-orange-400">🔥 {p.streak}</span>:<span className="text-[#6B6050]">—</span>}</td>
-                <td className="td text-center"><ChangeIcon curr={p.rank} prev={p.prev}/></td>
+                <td className="td text-center">
+                  <span className="font-bold font-mono" style={{ color: 'var(--amber)' }}>{s.rating || 1200}</span>
+                </td>
+                <td className="td text-center text-sm hidden sm:table-cell" style={{ color: 'var(--text-muted)' }}>{s.games_played || 0}</td>
+                <td className="td text-center text-sm hidden sm:table-cell" style={{ color: 'var(--text-muted)' }}>
+                  {s.win_rate ? `${Math.round(s.win_rate * 100)}%` : '—'}
+                </td>
               </tr>
             ))}
           </tbody>

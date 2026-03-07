@@ -1,167 +1,157 @@
 'use client'
-
-import Link from 'next/link'
 import { useAuth } from '@/lib/auth-context'
-import {
-  Puzzle, Trophy, BookOpen, TrendingUp, Flame,
-  ArrowUpRight, Target, CheckCircle2, Clock, Swords, Star
-} from 'lucide-react'
-import {
-  AreaChart, Area, LineChart, Line, RadarChart, Radar,
-  PolarGrid, PolarAngleAxis, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer
-} from 'recharts'
-
-const ratingData = [
-  { d: 'Jun 1', r: 1050 }, { d: 'Jun 7', r: 1080 }, { d: 'Jun 14', r: 1105 },
-  { d: 'Jun 21', r: 1090 }, { d: 'Jun 28', r: 1140 }, { d: 'Jul 5', r: 1175 },
-  { d: 'Jul 12', r: 1210 },
-]
-const radarData = [
-  { s: 'Tactics',  v: 72 }, { s: 'Endgame', v: 58 }, { s: 'Opening', v: 81 },
-  { s: 'Strategy', v: 64 }, { s: 'Speed',   v: 77 }, { s: 'Accuracy', v: 69 },
-]
-const assignments = [
-  { title: 'Sicilian Dragon Opening', due: 'Today', status: 'pending', type: 'Opening Study' },
-  { title: 'Knight Fork Puzzles (10)', due: 'Tomorrow', status: 'pending', type: 'Puzzles' },
-  { title: 'Rook Endgame Basics', due: 'Jul 18', status: 'submitted', type: 'Endgame' },
-]
-
-const Tip = ({ active, payload }: any) => active && payload?.length
-  ? <div className="card px-3 py-2 text-xs text-[#D4AF37] font-semibold">{payload[0].value}</div>
-  : null
+import { useUserStats, useAssignments, useClassrooms, useTournaments } from '@/lib/hooks'
+import { PageLoading } from '@/components/shared/States'
+import Avatar from '@/components/shared/Avatar'
+import Link from 'next/link'
+import { Swords, BookOpen, Puzzle, Trophy, TrendingUp, Star, Target, Zap, ArrowUpRight, Clock } from 'lucide-react'
 
 export default function StudentDashboard() {
   const { user } = useAuth()
+  const { data: stats, isLoading } = useUserStats(user?.id)
+  const { data: assignments = [] } = useAssignments({ status: 'pending', limit: 3 })
+  const { data: classrooms = [] } = useClassrooms()
+  const { data: tournaments = [] } = useTournaments()
+
+  if (isLoading) return <PageLoading />
+
+  const upcomingClass = classrooms.find((c: any) => c.status === 'live' || c.status === 'scheduled')
+  const pendingCount = assignments.filter((a: any) => a.status === 'pending').length
+  const activeTournament = tournaments.find((t: any) => t.status === 'active')
+
+  const quickActions = [
+    { href: '/game', icon: Swords, label: 'Play Chess', desc: 'Find a game', color: '#1D4ED8', bg: '#DBEAFE' },
+    { href: '/student/puzzles', icon: Puzzle, label: 'Puzzles', desc: `${stats?.puzzles_solved || 0} solved`, color: '#15803D', bg: '#DCFCE7' },
+    { href: '/student/lessons', icon: BookOpen, label: 'Lessons', desc: 'Continue learning', color: '#9A6E00', bg: 'rgba(200,150,30,0.12)' },
+    { href: '/student/tournaments', icon: Trophy, label: 'Tournaments', desc: activeTournament ? 'Active now' : 'Browse all', color: '#7C3AED', bg: '#EDE9FE' },
+  ]
+
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="page-title">
-            Good morning, <span className="text-gold-gradient">{user?.name?.split(' ')[0]}</span> ♟
+      {/* Welcome */}
+      <div className="card p-6 flex items-center gap-5"
+        style={{ background: 'linear-gradient(135deg, #FFFCF8 0%, rgba(200,150,30,0.06) 100%)' }}>
+        <Avatar user={user} size="lg" />
+        <div className="flex-1">
+          <h1 className="font-display text-2xl font-bold" style={{ color: 'var(--text)' }}>
+            Hello, {user?.name?.split(' ')[0]}! 👋
           </h1>
-          <p className="text-[#6B6050] text-sm mt-1">Your chess journey continues — keep improving!</p>
+          <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
+            {pendingCount > 0 ? `You have ${pendingCount} pending assignment${pendingCount > 1 ? 's' : ''}` : 'All assignments complete — great work!'}
+          </p>
         </div>
-        <Link href="/game" className="btn-primary">
-          <Swords size={16} /> Play Now
-        </Link>
+        {user?.rating && (
+          <div className="text-center hidden sm:block">
+            <div className="font-display text-3xl font-bold" style={{ color: 'var(--amber)' }}>{user.rating}</div>
+            <div className="text-xs flex items-center gap-1 justify-center mt-0.5" style={{ color: 'var(--text-muted)' }}>
+              <Star size={11} style={{ color: 'var(--amber)' }} />ELO Rating
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Quick stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Stats */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
-          { label: 'Current Rating', value: user?.rating || 1210, icon: Star, color: '#D4AF37', sub: '+42 this month' },
-          { label: 'Puzzle Streak', value: '12 🔥', icon: Flame, color: '#F97316', sub: 'Personal best!' },
-          { label: 'Games Played', value: 284, icon: Swords, color: '#60A5FA', sub: 'Win rate 58%' },
-          { label: 'Puzzles Solved', value: 1420, icon: Puzzle, color: '#A78BFA', sub: '94% accuracy' },
-        ].map((s, i) => (
-          <div key={i} className="stat-card">
-            <div className="flex items-start justify-between mb-2">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: `${s.color}15` }}>
-                <s.icon size={17} style={{ color: s.color }} />
-              </div>
+          { label: 'Games Played', value: stats?.games_played || 0, icon: Swords, color: '#1D4ED8' },
+          { label: 'Puzzles Solved', value: stats?.puzzles_solved || 0, icon: Puzzle, color: '#15803D' },
+          { label: 'Win Rate', value: stats?.win_rate ? `${Math.round(stats.win_rate * 100)}%` : '—', icon: TrendingUp, color: '#9A6E00' },
+          { label: 'Streak Days', value: stats?.streak || 0, icon: Zap, color: '#7C3AED' },
+        ].map(s => (
+          <div key={s.label} className="stat-card">
+            <div className="flex items-center gap-2 mb-1">
+              <s.icon size={16} style={{ color: s.color }} />
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{s.label}</span>
             </div>
-            <div className="font-display text-2xl font-bold">{s.value}</div>
-            <div className="text-xs text-[#6B6050]">{s.label}</div>
-            <div className="text-xs mt-0.5" style={{ color: s.color }}>{s.sub}</div>
+            <div className="text-2xl font-display font-bold" style={{ color: s.color }}>{s.value}</div>
           </div>
         ))}
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-5">
-        {/* Rating chart */}
-        <div className="card p-6 lg:col-span-2">
-          <div className="flex items-center justify-between mb-5">
-            <h3 className="section-title">Rating Progress</h3>
-            <span className="badge-green text-xs">+160 pts ↑</span>
-          </div>
-          <ResponsiveContainer width="100%" height={180}>
-            <AreaChart data={ratingData}>
-              <defs>
-                <linearGradient id="rg" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#D4AF37" stopOpacity={0.25} />
-                  <stop offset="95%" stopColor="#D4AF37" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-              <XAxis dataKey="d" tick={{ fill: '#6B6050', fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis domain={['auto','auto']} tick={{ fill: '#6B6050', fontSize: 11 }} axisLine={false} tickLine={false} />
-              <Tooltip content={<Tip />} />
-              <Area type="monotone" dataKey="r" stroke="#D4AF37" strokeWidth={2.5} fill="url(#rg)" dot={false} />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Skill radar */}
-        <div className="card p-6">
-          <h3 className="section-title mb-5">Skill Radar</h3>
-          <ResponsiveContainer width="100%" height={180}>
-            <RadarChart data={radarData}>
-              <PolarGrid stroke="rgba(255,255,255,0.07)" />
-              <PolarAngleAxis dataKey="s" tick={{ fill: '#6B6050', fontSize: 11 }} />
-              <Radar dataKey="v" stroke="#D4AF37" fill="#D4AF37" fillOpacity={0.15} />
-            </RadarChart>
-          </ResponsiveContainer>
+      {/* Quick Actions */}
+      <div>
+        <h2 className="section-title mb-3">Quick Actions</h2>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          {quickActions.map(a => (
+            <Link key={a.href} href={a.href} className="card-hover p-5 flex flex-col gap-3">
+              <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ background: a.bg }}>
+                <a.icon size={20} style={{ color: a.color }} />
+              </div>
+              <div>
+                <div className="font-semibold text-sm" style={{ color: 'var(--text)' }}>{a.label}</div>
+                <div className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{a.desc}</div>
+              </div>
+            </Link>
+          ))}
         </div>
       </div>
 
       <div className="grid lg:grid-cols-2 gap-5">
-        {/* Assignments */}
-        <div className="card overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.07]">
-            <h3 className="section-title">Assignments</h3>
-            <Link href="/student/assignments" className="text-xs text-[#D4AF37] flex items-center gap-1">View all <ArrowUpRight size={12} /></Link>
+        {/* Upcoming Class */}
+        <div className="card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="section-title">Next Class</h3>
+            <Link href="/student/lessons" className="text-xs flex items-center gap-1" style={{ color: 'var(--amber)' }}>View all <ArrowUpRight size={11} /></Link>
           </div>
-          <div className="divide-y divide-white/[0.05]">
-            {assignments.map((a, i) => (
-              <div key={i} className="flex items-center justify-between px-5 py-3.5">
-                <div className="flex-1 min-w-0 mr-4">
-                  <div className="text-sm font-medium truncate">{a.title}</div>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="badge-gray text-[11px]">{a.type}</span>
-                    <span className="text-xs text-[#6B6050] flex items-center gap-1"><Clock size={10} />{a.due}</span>
-                  </div>
+          {upcomingClass ? (
+            <div className="space-y-3">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(200,150,30,0.10)' }}>
+                  <BookOpen size={18} style={{ color: 'var(--amber)' }} />
                 </div>
-                <span className={a.status === 'submitted' ? 'badge-green text-[11px]' : 'badge-gold text-[11px]'}>
-                  {a.status === 'submitted' ? <><CheckCircle2 size={10} /> Done</> : 'Due'}
-                </span>
+                <div>
+                  <div className="font-medium text-sm" style={{ color: 'var(--text)' }}>{upcomingClass.title}</div>
+                  <div className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>by {upcomingClass.coach_name || 'Your Coach'}</div>
+                  {upcomingClass.scheduled_at && (
+                    <div className="flex items-center gap-1 text-xs mt-1" style={{ color: 'var(--text-mid)' }}>
+                      <Clock size={11} />
+                      {new Date(upcomingClass.scheduled_at).toLocaleString('en-IN', { weekday: 'short', hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                  )}
+                </div>
               </div>
-            ))}
-          </div>
+              <Link href={`/classroom/${upcomingClass.id}`}
+                className={`block text-center text-sm py-2 rounded-xl font-medium transition-all ${upcomingClass.status === 'live' ? 'btn-primary' : 'btn-secondary'}`}>
+                {upcomingClass.status === 'live' ? '🔴 Join Live Now' : 'View Class'}
+              </Link>
+            </div>
+          ) : (
+            <div className="py-6 text-center">
+              <BookOpen size={28} className="mx-auto mb-2" style={{ color: 'var(--border-md)' }} />
+              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No upcoming classes</p>
+            </div>
+          )}
         </div>
 
-        {/* Daily tasks */}
+        {/* Pending Assignments */}
         <div className="card p-5">
-          <h3 className="section-title mb-4">Today's Training</h3>
-          <div className="space-y-3">
-            {[
-              { t: 'Solve 10 tactics puzzles', pts: '+50 XP', done: true,  icon: Puzzle },
-              { t: 'Play 1 rated game',        pts: '+30 XP', done: true,  icon: Swords },
-              { t: 'Watch opening lesson',     pts: '+20 XP', done: false, icon: BookOpen },
-              { t: 'Review yesterday\'s game', pts: '+25 XP', done: false, icon: TrendingUp },
-            ].map((task, i) => (
-              <div key={i} className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${task.done ? 'border-green-500/20 bg-green-500/5' : 'border-white/[0.07]'}`}>
-                <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${task.done ? 'bg-green-500/20' : 'bg-white/[0.05]'}`}>
-                  {task.done
-                    ? <CheckCircle2 size={15} className="text-green-400" />
-                    : <task.icon size={15} className="text-[#6B6050]" />
-                  }
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="section-title">Assignments</h3>
+            <Link href="/student/assignments" className="text-xs flex items-center gap-1" style={{ color: 'var(--amber)' }}>View all <ArrowUpRight size={11} /></Link>
+          </div>
+          {assignments.length === 0 ? (
+            <div className="py-6 text-center">
+              <Target size={28} className="mx-auto mb-2" style={{ color: 'var(--border-md)' }} />
+              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No pending assignments</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {assignments.slice(0, 3).map((a: any) => (
+                <div key={a.id} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: 'var(--bg-subtle)' }}>
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: '#FEF3C7' }}>
+                    <Target size={14} style={{ color: '#B45309' }} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium truncate">{a.title}</div>
+                    <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                      Due: {a.due_date ? new Date(a.due_date).toLocaleDateString('en-IN') : 'No deadline'}
+                    </div>
+                  </div>
+                  <span className="badge badge-orange text-xs">Pending</span>
                 </div>
-                <span className={`flex-1 text-sm ${task.done ? 'line-through text-[#6B6050]' : ''}`}>{task.t}</span>
-                <span className="text-xs text-[#D4AF37]">{task.pts}</span>
-              </div>
-            ))}
-          </div>
-          <div className="mt-4 pt-4 border-t border-white/[0.07]">
-            <div className="flex items-center justify-between text-sm mb-2">
-              <span className="text-[#A09880]">Daily progress</span>
-              <span className="text-[#D4AF37] font-semibold">2 / 4 done</span>
+              ))}
             </div>
-            <div className="progress-bar">
-              <div className="progress-fill" style={{ width: '50%' }} />
-            </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

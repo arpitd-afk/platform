@@ -1,41 +1,93 @@
 'use client'
 import { useState } from 'react'
-import { Settings, Save, Globe, Bell, Shield, Palette } from 'lucide-react'
+import { useAuth } from '@/lib/auth-context'
+import { useAcademy } from '@/lib/hooks'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { academiesAPI } from '@/lib/api'
+import { PageLoading } from '@/components/shared/States'
+import { Settings, Building2, Globe, Save, Loader2, Palette } from 'lucide-react'
+import toast from 'react-hot-toast'
+
 export default function AcademySettingsPage() {
-  const [name, setName] = useState('Demo Chess Academy')
-  const [email, setEmail] = useState('contact@demo-academy.com')
-  const [phone, setPhone] = useState('+91 98765 43210')
-  const [emailNotif, setEmailNotif] = useState(true)
-  const [smsNotif, setSmsNotif] = useState(false)
+  const { user } = useAuth()
+  const qc = useQueryClient()
+  const { data: academy, isLoading } = useAcademy(user?.academyId)
+  const [name, setName] = useState('')
+  const [slug, setSlug] = useState('')
+  const [city, setCity] = useState('')
+  const [country, setCountry] = useState('')
+  const [loaded, setLoaded] = useState(false)
+
+  if (!loaded && academy) {
+    setName(academy.name || ''); setSlug(academy.slug || '')
+    setCity(academy.city || ''); setCountry(academy.country || 'India')
+    setLoaded(true)
+  }
+
+  const { mutateAsync, isPending } = useMutation({
+    mutationFn: () => academiesAPI.update(user!.academyId!, { name, slug, city, country }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['academy'] }); toast.success('Settings saved!') },
+    onError: () => toast.error('Failed to save'),
+  })
+
+  if (isLoading) return <PageLoading />
+
   return (
-    <div className="space-y-5 animate-fade-in max-w-2xl">
-      <h1 className="page-title flex items-center gap-2"><Settings size={22} className="text-[#A09880]"/>Academy Settings</h1>
+    <div className="max-w-2xl mx-auto space-y-5 animate-fade-in">
+      <h1 className="page-title flex items-center gap-2"><Settings size={22} style={{ color: 'var(--amber)' }} />Academy Settings</h1>
+
       <div className="card p-6 space-y-5">
-        <h3 className="section-title flex items-center gap-2"><Globe size={16} className="text-[#60A5FA]"/>General</h3>
-        <div className="grid grid-cols-2 gap-4">
-          <div><label className="label">Academy Name</label><input className="input" value={name} onChange={e=>setName(e.target.value)}/></div>
-          <div><label className="label">Contact Email</label><input className="input" value={email} onChange={e=>setEmail(e.target.value)}/></div>
-          <div><label className="label">Phone</label><input className="input" value={phone} onChange={e=>setPhone(e.target.value)}/></div>
-          <div><label className="label">Subdomain</label><div className="flex items-center"><input className="input rounded-r-none border-r-0" defaultValue="demo-academy"/><span className="input rounded-l-none border-l-0 text-[#6B6050] whitespace-nowrap text-xs">.chessacademy.pro</span></div></div>
-        </div>
-        <div><label className="label">Bio / Description</label><textarea className="input h-24 resize-none" defaultValue="Premier chess academy focused on holistic development of chess skills."/></div>
-        <button className="btn-primary flex items-center gap-2"><Save size={15}/>Save Changes</button>
-      </div>
-      <div className="card p-6 space-y-4">
-        <h3 className="section-title flex items-center gap-2"><Bell size={16} className="text-[#D4AF37]"/>Notifications</h3>
-        {[{l:'Email notifications for new enrollments',v:emailNotif,set:setEmailNotif},{l:'SMS alerts for missed classes',v:smsNotif,set:setSmsNotif}].map((item,i)=>(
-          <div key={i} className="flex items-center justify-between py-3 border-b border-white/[0.05] last:border-0">
-            <span className="text-sm text-[#A09880]">{item.l}</span>
-            <button onClick={()=>item.set(!item.v)} className={`w-11 h-6 rounded-full transition-all relative ${item.v?'bg-[#D4AF37]':'bg-white/[0.10]'}`}>
-              <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${item.v?'left-6':'left-1'}`}/>
-            </button>
+        <h3 className="section-title flex items-center gap-2"><Building2 size={16} style={{ color: 'var(--amber)' }} />General</h3>
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div>
+            <label className="label">Academy Name *</label>
+            <input className="input" value={name} onChange={e => setName(e.target.value)} placeholder="Your Academy Name" />
           </div>
-        ))}
+          <div>
+            <label className="label">URL Slug</label>
+            <div className="relative">
+              <input className="input pl-10" value={slug} onChange={e => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} placeholder="my-academy" />
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs" style={{ color: 'var(--text-muted)' }}>@</span>
+            </div>
+            <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{slug || 'your-slug'}.chessacademy.pro</p>
+          </div>
+          <div>
+            <label className="label">City</label>
+            <input className="input" value={city} onChange={e => setCity(e.target.value)} placeholder="Bengaluru" />
+          </div>
+          <div>
+            <label className="label">Country</label>
+            <select className="input" value={country} onChange={e => setCountry(e.target.value)}>
+              {['India', 'United States', 'United Kingdom', 'Canada', 'Australia', 'Other'].map(c =>
+                <option key={c} value={c}>{c}</option>
+              )}
+            </select>
+          </div>
+        </div>
+
+        <div className="pt-2" style={{ borderTop: '1px solid var(--border)' }}>
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="font-medium text-sm">Current Plan</div>
+              <div className="text-xs capitalize mt-0.5 badge badge-gold">{academy?.plan || 'trial'}</div>
+            </div>
+            <a href="/academy/billing" className="btn-secondary text-sm">Upgrade Plan</a>
+          </div>
+        </div>
+
+        <button onClick={() => mutateAsync()} disabled={isPending} className="btn-primary flex items-center gap-2">
+          {isPending ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+          {isPending ? 'Saving...' : 'Save Settings'}
+        </button>
       </div>
+
       <div className="card p-6 space-y-4">
-        <h3 className="section-title flex items-center gap-2"><Shield size={16} className="text-[#4ADE80]"/>Security</h3>
-        <button className="btn-secondary text-sm">Change Password</button>
-        <div className="text-xs text-[#6B6050]">Last password change: 3 months ago</div>
+        <h3 className="section-title flex items-center gap-2 text-red-600"><Settings size={16} />Danger Zone</h3>
+        <div className="rounded-xl p-4" style={{ background: '#FEF2F2', border: '1px solid #FEE2E2' }}>
+          <h4 className="font-medium text-sm text-red-700">Delete Academy</h4>
+          <p className="text-xs text-red-600 mt-1">Permanently deletes all data including students, coaches, and classes. This cannot be undone.</p>
+          <button className="mt-3 btn-danger text-xs py-2 px-4">Delete Academy</button>
+        </div>
       </div>
     </div>
   )

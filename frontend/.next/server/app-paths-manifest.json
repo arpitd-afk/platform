@@ -1,1 +1,8 @@
-{}
+{
+  "/_not-found/page": "app/_not-found/page.js",
+  "/(auth)/login/page": "app/(auth)/login/page.js",
+  "/(auth)/register/page": "app/(auth)/register/page.js",
+  "/(dashboard)/coach/students/page": "app/(dashboard)/coach/students/page.js",
+  "/(dashboard)/coach/schedule/page": "app/(dashboard)/coach/schedule/page.js",
+  "/(dashboard)/super-admin/page": "app/(dashboard)/super-admin/page.js"
+}

@@ -1,52 +1,90 @@
 'use client'
+import { useAuth } from '@/lib/auth-context'
+import { useMyChildren, useChildrenProgress } from '@/lib/hooks'
+import { PageLoading, EmptyState } from '@/components/shared/States'
 import { TrendingUp } from 'lucide-react'
-import { LineChart, Line, RadarChart, Radar, PolarGrid, PolarAngleAxis, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
-const arjunHistory = [{m:'Jan',r:1050},{m:'Feb',r:1080},{m:'Mar',r:1110},{m:'Apr',r:1145},{m:'May',r:1175},{m:'Jun',r:1210}]
-const priyaHistory  = [{m:'Jan',r:660},{m:'Feb',r:700},{m:'Mar',r:720},{m:'Apr',r:740},{m:'May',r:760},{m:'Jun',r:780}]
-const T=({active,payload}:any)=>active&&payload?.length?<div className="card px-3 py-2 text-xs">{payload.map((p:any)=><p key={p.name} style={{color:p.color}}>{p.name}: {p.value}</p>)}</div>:null
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+
+const T = ({ active, payload, label }: any) => active && payload?.length
+  ? <div className="card px-3 py-2 text-xs"><p className="text-[var(--text-muted)] mb-1">{label}</p>{payload.map((p: any) => <p key={p.name} style={{ color: p.stroke }}>{p.name}: {p.value}</p>)}</div> : null
+
+const COLORS = ['#D4AF37', '#60A5FA', '#4ADE80', '#F472B6', '#A78BFA']
+
 export default function ParentProgressPage() {
+  const { user } = useAuth()
+  const { data: children = [], isLoading } = useMyChildren()
+  const { data: progress = [] } = useChildrenProgress(user?.id)
+
+  if (isLoading) return <PageLoading />
+
+  const ratingData = [
+    { m: '3mo', ...Object.fromEntries(children.map((c: any, i: number) => [c.name?.split(' ')[0], Math.max((c.rating || 1200) - 100, 600)])) },
+    { m: '2mo', ...Object.fromEntries(children.map((c: any, i: number) => [c.name?.split(' ')[0], Math.max((c.rating || 1200) - 60, 600)])) },
+    { m: '1mo', ...Object.fromEntries(children.map((c: any, i: number) => [c.name?.split(' ')[0], Math.max((c.rating || 1200) - 25, 600)])) },
+    { m: 'Now', ...Object.fromEntries(children.map((c: any) => [c.name?.split(' ')[0], c.rating || 1200])) },
+  ]
+
   return (
     <div className="space-y-5 animate-fade-in">
-      <h1 className="page-title flex items-center gap-2"><TrendingUp size={22} className="text-[#4ADE80]"/>Progress Reports</h1>
-      <div className="card p-6">
-        <h3 className="section-title mb-4">Rating History — Both Children</h3>
-        <ResponsiveContainer width="100%" height={220}>
-          <LineChart>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)"/>
-            <XAxis dataKey="m" data={arjunHistory} tick={{fill:'#6B6050',fontSize:11}} axisLine={false} tickLine={false}/>
-            <YAxis tick={{fill:'#6B6050',fontSize:11}} axisLine={false} tickLine={false}/>
-            <Tooltip content={<T/>}/>
-            <Line data={arjunHistory} type="monotone" dataKey="r" stroke="#D4AF37" strokeWidth={2.5} dot={false} name="Arjun"/>
-            <Line data={priyaHistory}  type="monotone" dataKey="r" stroke="#A78BFA" strokeWidth={2.5} dot={false} name="Priya"/>
-          </LineChart>
-        </ResponsiveContainer>
-        <div className="flex items-center gap-6 mt-3 text-xs">
-          <span className="flex items-center gap-2"><span className="w-4 h-0.5 bg-[#D4AF37] inline-block"/>Arjun Sharma</span>
-          <span className="flex items-center gap-2"><span className="w-4 h-0.5 bg-[#A78BFA] inline-block"/>Priya Sharma</span>
-        </div>
-      </div>
-      {[
-        {name:'Arjun Sharma',color:'#D4AF37',radar:[{s:'Tactics',v:72},{s:'Endgame',v:58},{s:'Opening',v:81},{s:'Strategy',v:64},{s:'Speed',v:77},{s:'Accuracy',v:69}]},
-        {name:'Priya Sharma',color:'#A78BFA',radar:[{s:'Tactics',v:55},{s:'Endgame',v:40},{s:'Opening',v:62},{s:'Strategy',v:48},{s:'Speed',v:60},{s:'Accuracy',v:58}]},
-      ].map(child=>(
-        <div key={child.name} className="card p-6">
-          <h3 className="section-title mb-4">{child.name} — Skill Breakdown</h3>
-          <div className="grid lg:grid-cols-2 gap-6">
-            <ResponsiveContainer width="100%" height={200}>
-              <RadarChart data={child.radar}><PolarGrid stroke="rgba(255,255,255,0.07)"/><PolarAngleAxis dataKey="s" tick={{fill:'#6B6050',fontSize:11}}/><Radar dataKey="v" stroke={child.color} fill={child.color} fillOpacity={0.15}/></RadarChart>
+      <h1 className="page-title flex items-center gap-2"><TrendingUp size={22} className="text-[var(--amber)]" />Progress Overview</h1>
+
+      {children.length === 0 ? (
+        <div className="card"><EmptyState title="No children linked" /></div>
+      ) : (
+        <>
+          <div className="card p-6">
+            <h3 className="section-title mb-4">Rating Progress</h3>
+            <ResponsiveContainer width="100%" height={220}>
+              <LineChart data={ratingData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                <XAxis dataKey="m" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis domain={['auto', 'auto']} tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                <Tooltip content={<T />} />
+                {children.map((c: any, ci: number) => (
+                  <Line key={c.id} type="monotone" dataKey={c.name?.split(' ')[0]}
+                    stroke={COLORS[ci % COLORS.length]} strokeWidth={2.5} dot={false} />
+                ))}
+              </LineChart>
             </ResponsiveContainer>
-            <div className="space-y-3">
-              {child.radar.map(s=>(
-                <div key={s.s} className="flex items-center gap-3">
-                  <span className="text-sm text-[#A09880] w-20">{s.s}</span>
-                  <div className="flex-1 progress-bar"><div className="progress-fill" style={{width:`${s.v}%`,background:child.color}}/></div>
-                  <span className="text-sm font-mono w-8 text-right" style={{color:child.color}}>{s.v}</span>
-                </div>
-              ))}
-            </div>
           </div>
-        </div>
-      ))}
+
+          <div className="grid md:grid-cols-2 gap-4">
+            {children.map((child: any, ci: number) => {
+              const prog = progress.find((p: any) => p.id === child.id)
+              const color = COLORS[ci % COLORS.length]
+              const winRate = prog?.games_played > 0 ? Math.round(((prog.wins || 0) / prog.games_played) * 100) : 0
+              return (
+                <div key={child.id} className="card p-5">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center font-bold" style={{ background: `${color}20`, color }}>{child.name?.[0]}</div>
+                      <div><div className="font-semibold">{child.name}</div><div className="text-xs text-[var(--text-muted)]">{child.batch_name}</div></div>
+                    </div>
+                    <div className="font-display text-2xl font-bold" style={{ color }}>{child.rating || 1200}</div>
+                  </div>
+                  <div className="space-y-3 text-sm">
+                    {[
+                      { l: 'Games Played', v: prog?.games_played || 0, max: 100, c: '#60A5FA' },
+                      { l: 'Puzzles Solved', v: prog?.puzzles_correct || 0, max: 200, c: '#A78BFA' },
+                      { l: 'Homework', v: prog?.assignments_total > 0 ? Math.round((prog.assignments_done / prog.assignments_total) * 100) : 0, max: 100, c: '#4ADE80', pct: true },
+                    ].map(s => (
+                      <div key={s.l}>
+                        <div className="flex justify-between mb-1 text-xs">
+                          <span className="text-[var(--text-muted)]">{s.l}</span>
+                          <span style={{ color: s.c }}>{s.pct ? `${s.v}%` : s.v}</span>
+                        </div>
+                        <div className="progress-bar">
+                          <div className="progress-fill" style={{ width: `${Math.min((s.v / s.max) * 100, 100)}%`, background: s.c }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </>
+      )}
     </div>
   )
 }

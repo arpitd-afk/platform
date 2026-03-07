@@ -1,145 +1,128 @@
 'use client'
-
-import Link from 'next/link'
 import { useAuth } from '@/lib/auth-context'
-import {
-  Users, BookOpen, Star, CheckCircle2, Clock,
-  Plus, ArrowUpRight, TrendingUp, Calendar
-} from 'lucide-react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
-
-const weekData = [
-  { d: 'Mon', c: 2, s: 14 }, { d: 'Tue', c: 3, s: 22 }, { d: 'Wed', c: 1, s: 8 },
-  { d: 'Thu', c: 4, s: 28 }, { d: 'Fri', c: 2, s: 16 }, { d: 'Sat', c: 3, s: 24 }, { d: 'Sun', c: 0, s: 0 },
-]
-const students = [
-  { name: 'Arjun Sharma',  rating: 1210, progress: 82, status: 'improving',       last: '1h ago' },
-  { name: 'Priya Nair',    rating: 980,  progress: 65, status: 'steady',          last: '3h ago' },
-  { name: 'Rohit Verma',   rating: 1540, progress: 91, status: 'improving',       last: 'Yesterday' },
-  { name: 'Meera Patel',   rating: 750,  progress: 45, status: 'needs_attention', last: '2d ago' },
-  { name: 'Kiran Kumar',   rating: 1120, progress: 73, status: 'steady',          last: '1h ago' },
-]
-const upcomingClasses = [
-  { title: 'Sicilian Defense — Batch A', time: '10:00 AM', students: 8,  today: true },
-  { title: 'Endgame Techniques',         time: '2:00 PM',  students: 12, today: true },
-  { title: 'Opening Theory — Advanced',  time: 'Tomorrow 11am', students: 6, today: false },
-]
-
-const T = ({ active, payload, label }: any) => active && payload?.length
-  ? <div className="card px-3 py-2 text-xs"><p className="text-[#6B6050] mb-1">{label}</p>{payload.map((p: any) => <p key={p.name} style={{ color: p.fill }}>{p.dataKey}: {p.value}</p>)}</div>
-  : null
+import { useUsers, useClassrooms, useAssignments } from '@/lib/hooks'
+import { PageLoading } from '@/components/shared/States'
+import Avatar from '@/components/shared/Avatar'
+import Link from 'next/link'
+import { Users, Video, ClipboardList, BarChart3, ArrowUpRight, Star, TrendingUp, Clock } from 'lucide-react'
 
 export default function CoachDashboard() {
   const { user } = useAuth()
+  const { data: students = [], isLoading } = useUsers({ role: 'student' })
+  const { data: classrooms = [] } = useClassrooms()
+  const { data: assignments = [] } = useAssignments({})
+
+  if (isLoading) return <PageLoading />
+
+  const liveClass = classrooms.find((c: any) => c.status === 'live')
+  const upcoming = classrooms.filter((c: any) => c.status === 'scheduled').slice(0, 3)
+  const pendingReview = assignments.filter((a: any) => a.status === 'submitted').length
+  const avgRating = students.length
+    ? Math.round(students.reduce((s: number, u: any) => s + (u.rating || 1200), 0) / students.length)
+    : 0
+
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="page-title">Morning, {user?.name?.split(' ')[0]} ♟</h1>
-          <p className="text-[#6B6050] text-sm mt-1">You have {upcomingClasses.filter(c => c.today).length} classes today</p>
+      {/* Welcome banner */}
+      <div className="card p-6 flex items-center gap-5"
+        style={{ background: 'linear-gradient(135deg, #FFFCF8 0%, rgba(21,128,61,0.05) 100%)' }}>
+        <Avatar user={user} size="lg" />
+        <div className="flex-1">
+          <h1 className="font-display text-2xl font-bold" style={{ color: 'var(--text)' }}>
+            Welcome back, {user?.name?.split(' ')[0]}!
+          </h1>
+          <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
+            {pendingReview > 0 ? `${pendingReview} assignment${pendingReview > 1 ? 's' : ''} awaiting review` : 'All assignments reviewed'}
+          </p>
         </div>
-        <div className="flex gap-2">
-          <Link href="/coach/assignments/new" className="btn-secondary text-sm"><Plus size={15} />Assignment</Link>
-          <Link href="/coach/classroom/new" className="btn-primary text-sm"><Plus size={15} />New Class</Link>
-        </div>
+        {liveClass && (
+          <Link href={`/classroom/${liveClass.id}`} className="btn-primary flex items-center gap-2">
+            <Video size={15} />
+            <span className="w-2 h-2 bg-red-400 rounded-full animate-pulse" />
+            Join Live
+          </Link>
+        )}
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Stats */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
-          { label: 'My Students', value: '47', icon: Users, color: '#4ADE80', sub: '+3 this month' },
-          { label: 'Classes / Week', value: '15', icon: BookOpen, color: '#60A5FA', sub: '3 today' },
-          { label: 'Avg Rating', value: '1,140', icon: Star, color: '#D4AF37', sub: '+28 avg gain' },
-          { label: 'Pending Reviews', value: '8', icon: CheckCircle2, color: '#F472B6', sub: 'assignments' },
-        ].map((s, i) => (
-          <div key={i} className="stat-card">
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center mb-2" style={{ background: `${s.color}15` }}>
-              <s.icon size={17} style={{ color: s.color }} />
-            </div>
-            <div className="font-display text-2xl font-bold">{s.value}</div>
-            <div className="text-xs text-[#6B6050]">{s.label}</div>
-            <div className="text-xs mt-0.5" style={{ color: s.color }}>{s.sub}</div>
-          </div>
+          { label: 'My Students', value: students.length, icon: Users, color: '#1D4ED8', href: '/coach/students' },
+          { label: 'Classes This Week', value: classrooms.filter((c: any) => c.status !== 'cancelled').length, icon: Video, color: '#15803D', href: '/coach/classroom' },
+          { label: 'Avg. Student Rating', value: avgRating, icon: Star, color: '#9A6E00', href: '/coach/analysis' },
+          { label: 'Pending Review', value: pendingReview, icon: ClipboardList, color: '#BE185D', href: '/coach/assignments' },
+        ].map(s => (
+          <Link key={s.label} href={s.href} className="stat-card hover:shadow-md transition-all">
+            <s.icon size={18} style={{ color: s.color }} />
+            <div className="text-2xl font-display font-bold mt-1" style={{ color: s.color }}>{s.value}</div>
+            <div className="text-xs" style={{ color: 'var(--text-muted)' }}>{s.label}</div>
+          </Link>
         ))}
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-5">
-        <div className="card p-6 lg:col-span-2">
-          <h3 className="section-title mb-5">Weekly Activity</h3>
-          <ResponsiveContainer width="100%" height={180}>
-            <BarChart data={weekData} barGap={4}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-              <XAxis dataKey="d" tick={{ fill: '#6B6050', fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: '#6B6050', fontSize: 11 }} axisLine={false} tickLine={false} />
-              <Tooltip content={<T />} />
-              <Bar dataKey="s" fill="#60A5FA" radius={[4,4,0,0]} name="Students" />
-              <Bar dataKey="c" fill="#D4AF37" radius={[4,4,0,0]} name="Classes" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-
-        <div className="card overflow-hidden">
-          <div className="px-5 py-4 border-b border-white/[0.07] flex items-center justify-between">
-            <h3 className="section-title text-sm">Today's Classes</h3>
-            <Link href="/coach/classroom" className="text-xs text-[#4ADE80]">View all</Link>
+      <div className="grid lg:grid-cols-2 gap-5">
+        {/* Students list */}
+        <div className="card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="section-title">Recent Students</h3>
+            <Link href="/coach/students" className="text-xs flex items-center gap-1" style={{ color: 'var(--amber)' }}>
+              View all <ArrowUpRight size={11} />
+            </Link>
           </div>
-          <div className="p-3 space-y-2">
-            {upcomingClasses.map((c, i) => (
-              <div key={i} className={`p-3 rounded-xl border ${c.today ? 'border-[#4ADE80]/20 bg-[#4ADE80]/5' : 'border-white/[0.07]'}`}>
-                <div className="text-sm font-medium truncate">{c.title}</div>
-                <div className="flex items-center justify-between mt-1.5">
-                  <span className="text-xs text-[#6B6050] flex items-center gap-1"><Clock size={10} />{c.time}</span>
-                  {c.today && (
-                    <Link href="/classroom/live" className="text-xs bg-[#4ADE80] text-[#0F0E0B] font-semibold px-2.5 py-1 rounded-lg">Join</Link>
-                  )}
+          {students.length === 0 ? (
+            <p className="text-sm py-6 text-center" style={{ color: 'var(--text-muted)' }}>No students yet</p>
+          ) : (
+            <div className="space-y-2">
+              {students.slice(0, 5).map((s: any) => (
+                <div key={s.id} className="flex items-center gap-3 p-2.5 rounded-xl" style={{ background: 'var(--bg-subtle)' }}>
+                  <Avatar user={s} size="sm" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{s.name}</div>
+                    <div className="text-xs" style={{ color: 'var(--text-muted)' }}>{s.batch_name || 'No batch'}</div>
+                  </div>
+                  <div className="flex items-center gap-1 text-xs font-semibold" style={{ color: 'var(--amber)' }}>
+                    <Star size={11} />{s.rating || 1200}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
-      </div>
 
-      {/* Students table */}
-      <div className="card overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.07]">
-          <h3 className="section-title">My Students</h3>
-          <Link href="/coach/students" className="text-xs text-[#4ADE80] flex items-center gap-1">View all <ArrowUpRight size={12} /></Link>
+        {/* Upcoming classes */}
+        <div className="card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="section-title">Upcoming Classes</h3>
+            <Link href="/coach/classroom" className="text-xs flex items-center gap-1" style={{ color: 'var(--amber)' }}>
+              View all <ArrowUpRight size={11} />
+            </Link>
+          </div>
+          {upcoming.length === 0 ? (
+            <p className="text-sm py-6 text-center" style={{ color: 'var(--text-muted)' }}>No upcoming classes</p>
+          ) : (
+            <div className="space-y-2">
+              {upcoming.map((c: any) => (
+                <div key={c.id} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: 'var(--bg-subtle)' }}>
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(200,150,30,0.10)' }}>
+                    <Video size={15} style={{ color: 'var(--amber)' }} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{c.title}</div>
+                    {c.scheduled_at && (
+                      <div className="flex items-center gap-1 text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                        <Clock size={10} />
+                        {new Date(c.scheduled_at).toLocaleString('en-IN', { weekday: 'short', hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    )}
+                  </div>
+                  <Link href={`/classroom/${c.id}`} className="text-xs px-2.5 py-1 rounded-lg font-medium" style={{ background: 'rgba(200,150,30,0.12)', color: '#9A6E00' }}>
+                    Start
+                  </Link>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-white/[0.07]">
-              <th className="th">Student</th>
-              <th className="th text-center">Rating</th>
-              <th className="th">Progress</th>
-              <th className="th">Status</th>
-              <th className="th">Last Active</th>
-            </tr>
-          </thead>
-          <tbody>
-            {students.map((s, i) => (
-              <tr key={i} className="tr">
-                <td className="td">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-full bg-[#4ADE80]/15 flex items-center justify-center text-xs font-bold text-[#4ADE80]">{s.name[0]}</div>
-                    <span className="font-medium">{s.name}</span>
-                  </div>
-                </td>
-                <td className="td text-center font-mono">{s.rating}</td>
-                <td className="td w-32">
-                  <div className="flex items-center gap-2">
-                    <div className="progress-bar flex-1"><div className="progress-fill" style={{ width: `${s.progress}%` }} /></div>
-                    <span className="text-xs text-[#6B6050] w-8">{s.progress}%</span>
-                  </div>
-                </td>
-                <td className="td">
-                  <span className={`badge text-xs ${s.status === 'improving' ? 'badge-green' : s.status === 'needs_attention' ? 'badge-red' : 'badge-gray'}`}>
-                    {s.status === 'improving' ? '↑ Good' : s.status === 'needs_attention' ? '⚠ Needs help' : '→ Steady'}
-                  </span>
-                </td>
-                <td className="td text-[#6B6050] text-sm">{s.last}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
       </div>
     </div>
   )

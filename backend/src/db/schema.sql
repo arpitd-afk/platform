@@ -432,3 +432,41 @@ CREATE TRIGGER trigger_academies_updated_at
 CREATE TRIGGER trigger_games_updated_at
   BEFORE UPDATE ON games
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+-- ─── MESSAGES ────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS messages (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  sender_id   UUID REFERENCES users(id) ON DELETE CASCADE,
+  receiver_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  content     TEXT NOT NULL,
+  is_read     BOOLEAN DEFAULT false,
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_messages_sender   ON messages(sender_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_messages_receiver ON messages(receiver_id, is_read, created_at DESC);
+
+-- ─── LESSON PROGRESS ─────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS lesson_progress (
+  user_id    UUID REFERENCES users(id) ON DELETE CASCADE,
+  lesson_id  UUID REFERENCES lessons(id) ON DELETE CASCADE,
+  completed  BOOLEAN DEFAULT false,
+  watched_at TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY (user_id, lesson_id)
+);
+
+-- ─── ACTIVITY LOGS ───────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS activity_logs (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  actor_id    UUID REFERENCES users(id) ON DELETE SET NULL,
+  actor_name  TEXT,
+  actor_role  TEXT,
+  academy_id  UUID REFERENCES academies(id) ON DELETE CASCADE,
+  action      TEXT NOT NULL,
+  entity_type TEXT,
+  entity_id   UUID,
+  metadata    JSONB DEFAULT '{}',
+  ip_address  TEXT,
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_activity_logs_academy ON activity_logs(academy_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_activity_logs_actor  ON activity_logs(actor_id, created_at DESC);

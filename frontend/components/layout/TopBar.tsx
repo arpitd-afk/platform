@@ -1,217 +1,138 @@
-"use client";
+'use client'
+import { useState, useRef, useEffect } from 'react'
+import { useAuth } from '@/lib/auth-context'
+import { useNotifications, useMarkAllRead, useUnreadCount } from '@/lib/hooks'
+import Avatar from '@/components/shared/Avatar'
+import Link from 'next/link'
+import { Bell, Search, Settings, LogOut, X, ChevronDown, Star } from 'lucide-react'
+import { formatDistanceToNow } from 'date-fns'
 
-import { useState, useRef, useEffect } from "react";
-import {
-  Bell,
-  Search,
-  ChevronDown,
-  Settings,
-  LogOut,
-  User,
-} from "lucide-react";
-import { useAuth } from "../../lib/auth-context";
-import { motion, AnimatePresence } from "framer-motion";
-import Link from "next/link";
-
-const MOCK_NOTIFICATIONS = [
-  {
-    id: 1,
-    text: "New student enrolled in your class",
-    time: "2m ago",
-    unread: true,
-  },
-  {
-    id: 2,
-    text: 'Tournament "Spring Open" starts in 1 hour',
-    time: "58m ago",
-    unread: true,
-  },
-  {
-    id: 3,
-    text: "Assignment submitted by Arjun Sharma",
-    time: "2h ago",
-    unread: false,
-  },
-  {
-    id: 4,
-    text: "Monthly performance report is ready",
-    time: "1d ago",
-    unread: false,
-  },
-];
-
-export function TopBar() {
-  const { user, logout } = useAuth();
-  const [showNotifs, setShowNotifs] = useState(false);
-  const [showProfile, setShowProfile] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const notifsRef = useRef<HTMLDivElement>(null);
-  const profileRef = useRef<HTMLDivElement>(null);
-
-  const unreadCount = MOCK_NOTIFICATIONS.filter((n) => n.unread).length;
+export default function TopBar() {
+  const { user, logout } = useAuth()
+  const [profileOpen, setProfileOpen] = useState(false)
+  const [notifOpen, setNotifOpen] = useState(false)
+  const { data: notifications = [] } = useNotifications({ limit: 6 })
+  const { data: unreadCount = 0 } = useUnreadCount()
+  const markAll = useMarkAllRead()
+  const profileRef = useRef<HTMLDivElement>(null)
+  const notifRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      if (notifsRef.current && !notifsRef.current.contains(e.target as Node)) {
-        setShowNotifs(false);
-      }
-      if (
-        profileRef.current &&
-        !profileRef.current.contains(e.target as Node)
-      ) {
-        setShowProfile(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, []);
+    const h = (e: MouseEvent) => {
+      if (profileRef.current && !profileRef.current.contains(e.target as Node)) setProfileOpen(false)
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) setNotifOpen(false)
+    }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [])
+
+  const ROLE_COLOR: Record<string,string> = { super_admin:'#7C3AED', academy_admin:'#9A6E00', coach:'#15803D', student:'#1D4ED8', parent:'#BE185D' }
+  const roleColor = ROLE_COLOR[user?.role || ''] || '#9A6E00'
 
   return (
-    <header className="h-14 flex items-center px-6 border-b border-white/[0.06] bg-[#0F0E0B] gap-4 flex-shrink-0">
+    <header className="h-14 flex items-center justify-between px-4 lg:px-6 flex-shrink-0 lg:pl-6 pl-14"
+      style={{ background: '#FFFCF8', borderBottom: '1px solid var(--border)' }}>
       {/* Search */}
-      <div className="flex-1 max-w-md">
-        <div className="relative">
-          <Search
-            size={15}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-[#6B6050]"
-          />
-          <input
-            type="text"
-            placeholder="Search students, games, tournaments..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-white/[0.04] border border-white/[0.07] rounded-lg pl-9 pr-4 py-2 text-sm text-[#F5F0E8] placeholder:text-[#6B6050] focus:outline-none focus:border-[#D4AF37]/30 transition-colors"
-          />
-          <kbd className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6B6050] text-xs bg-white/[0.05] px-1.5 py-0.5 rounded">
-            ⌘K
-          </kbd>
-        </div>
+      <div className="relative hidden md:block">
+        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
+        <input placeholder="Search..." className="input pl-9 h-9 text-sm w-52"
+          style={{ background: 'var(--bg)', border: '1px solid var(--border)' }} />
       </div>
+      <div className="flex-1" />
 
-      <div className="ml-auto flex items-center gap-2">
+      <div className="flex items-center gap-1.5">
+        {/* ELO badge */}
+        {user?.rating && (
+          <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg mr-1"
+            style={{ background: 'rgba(200,150,30,0.10)', border: '1px solid rgba(200,150,30,0.20)' }}>
+            <Star size={12} style={{ color: 'var(--amber)' }} />
+            <span className="text-xs font-bold font-mono" style={{ color: 'var(--amber)' }}>{user.rating}</span>
+          </div>
+        )}
+
         {/* Notifications */}
-        <div className="relative" ref={notifsRef}>
-          <button
-            onClick={() => {
-              setShowNotifs((v) => !v);
-              setShowProfile(false);
-            }}
-            className="relative w-9 h-9 rounded-lg flex items-center justify-center text-[#6B6050] hover:text-[#A09880] hover:bg-white/[0.05] transition-all"
-          >
-            <Bell size={17} />
+        <div ref={notifRef} className="relative">
+          <button onClick={() => setNotifOpen(!notifOpen)} className="btn-icon relative">
+            <Bell size={18} />
             {unreadCount > 0 && (
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#D4AF37] rounded-full" />
+              <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full text-white text-[10px] font-bold flex items-center justify-center"
+                style={{ background: 'var(--amber)' }}>{unreadCount > 9 ? '9+' : unreadCount}</span>
             )}
           </button>
-
-          <AnimatePresence>
-            {showNotifs && (
-              <motion.div
-                initial={{ opacity: 0, y: 8, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 8, scale: 0.95 }}
-                transition={{ duration: 0.15 }}
-                className="absolute right-0 top-full mt-2 w-80 card shadow-2xl z-50 overflow-hidden"
-              >
-                <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.07]">
-                  <span className="text-sm font-medium">Notifications</span>
-                  {unreadCount > 0 && (
-                    <span className="badge-gold text-xs">
-                      {unreadCount} new
-                    </span>
-                  )}
+          {notifOpen && (
+            <div className="absolute right-0 top-11 w-80 card shadow-lg z-50 overflow-hidden animate-slide-up" style={{ border: '1px solid var(--border)' }}>
+              <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
+                <span className="font-semibold text-sm">Notifications</span>
+                <div className="flex items-center gap-2">
+                  {unreadCount > 0 && <button onClick={() => markAll.mutate()} className="text-xs hover:underline" style={{ color: 'var(--amber)' }}>Mark all read</button>}
+                  <button onClick={() => setNotifOpen(false)} className="btn-icon w-7 h-7"><X size={13} /></button>
                 </div>
-                <div className="max-h-80 overflow-y-auto">
-                  {MOCK_NOTIFICATIONS.map((n) => (
-                    <div
-                      key={n.id}
-                      className={`px-4 py-3 border-b border-white/[0.04] hover:bg-white/[0.03] transition-colors cursor-pointer ${
-                        n.unread ? "bg-[#D4AF37]/3" : ""
-                      }`}
-                    >
-                      <div className="flex items-start gap-2.5">
-                        {n.unread && (
-                          <div className="w-1.5 h-1.5 bg-[#D4AF37] rounded-full mt-1.5 flex-shrink-0" />
-                        )}
-                        <div className={n.unread ? "" : "ml-3.5"}>
-                          <p className="text-xs text-[#F5F0E8]">{n.text}</p>
-                          <p className="text-xs text-[#6B6050] mt-0.5">
-                            {n.time}
-                          </p>
-                        </div>
-                      </div>
+              </div>
+              <div className="max-h-72 overflow-y-auto">
+                {notifications.length === 0 ? (
+                  <div className="p-6 text-center text-sm" style={{ color: 'var(--text-muted)' }}>No notifications</div>
+                ) : notifications.map((n: any) => (
+                  <div key={n.id} className="px-4 py-3 transition-colors" style={{ borderBottom: '1px solid var(--border)', background: !n.is_read ? 'rgba(200,150,30,0.04)' : '' }}
+                    onMouseEnter={e => (e.currentTarget as any).style.background = 'var(--bg-subtle)'}
+                    onMouseLeave={e => (e.currentTarget as any).style.background = !n.is_read ? 'rgba(200,150,30,0.04)' : ''}>
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-sm" style={{ fontWeight: !n.is_read ? 600 : 400, color: 'var(--text)' }}>{n.title}</p>
+                      {!n.is_read && <div className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style={{ background: 'var(--amber)' }} />}
                     </div>
-                  ))}
-                </div>
-                <div className="px-4 py-2 text-center">
-                  <Link
-                    href="/notifications"
-                    className="text-xs text-[#D4AF37] hover:text-[#F0D060]"
-                  >
-                    View all notifications
-                  </Link>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+                    {n.body && <p className="text-xs mt-0.5 line-clamp-1" style={{ color: 'var(--text-muted)' }}>{n.body}</p>}
+                    <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>{formatDistanceToNow(new Date(n.created_at), { addSuffix: true })}</p>
+                  </div>
+                ))}
+              </div>
+              <Link href="/notifications" onClick={() => setNotifOpen(false)}
+                className="block px-4 py-2.5 text-center text-xs hover:underline" style={{ borderTop: '1px solid var(--border)', color: 'var(--amber)' }}>
+                View all
+              </Link>
+            </div>
+          )}
         </div>
 
         {/* Profile */}
-        <div className="relative" ref={profileRef}>
-          <button
-            onClick={() => {
-              setShowProfile((v) => !v);
-              setShowNotifs(false);
-            }}
-            className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-white/[0.05] transition-all"
-          >
-            <div className="w-7 h-7 rounded-full bg-[#D4AF37] flex items-center justify-center text-xs font-semibold text-[#0F0E0B]">
-              {user?.name.charAt(0).toUpperCase()}
-            </div>
-            <div className="hidden sm:block text-left">
-              <div className="text-xs font-medium leading-none">
-                {user?.name}
-              </div>
-            </div>
-            <ChevronDown size={13} className="text-[#6B6050]" />
+        <div ref={profileRef} className="relative">
+          <button onClick={() => setProfileOpen(!profileOpen)}
+            className="flex items-center gap-2 pl-1.5 pr-3 py-1.5 rounded-xl transition-colors"
+            onMouseEnter={e => (e.currentTarget as any).style.background = 'var(--bg-hover)'}
+            onMouseLeave={e => (e.currentTarget as any).style.background = ''}>
+            <Avatar user={user} size="sm" />
+            <span className="text-sm font-medium hidden sm:block" style={{ color: 'var(--text)' }}>{user?.name?.split(' ')[0]}</span>
+            <ChevronDown size={13} style={{ color: 'var(--text-muted)' }} />
           </button>
 
-          <AnimatePresence>
-            {showProfile && (
-              <motion.div
-                initial={{ opacity: 0, y: 8, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 8, scale: 0.95 }}
-                transition={{ duration: 0.15 }}
-                className="absolute right-0 top-full mt-2 w-48 card shadow-2xl z-50 py-1 overflow-hidden"
-              >
-                <Link
-                  href="/profile"
-                  className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-[#A09880] hover:text-[#F5F0E8] hover:bg-white/[0.05] transition-colors"
-                >
-                  <User size={15} />
-                  My Profile
+          {profileOpen && (
+            <div className="absolute right-0 top-11 w-52 card shadow-lg z-50 py-1 animate-slide-up">
+              <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
+                <div className="font-semibold text-sm" style={{ color: 'var(--text)' }}>{user?.name}</div>
+                <div className="text-xs capitalize mt-0.5" style={{ color: roleColor }}>{user?.role?.replace('_', ' ')}</div>
+              </div>
+              {[
+                { href: '/profile', label: 'My Profile' },
+                { href: '/notifications', label: `Notifications${unreadCount > 0 ? ` (${unreadCount})` : ''}` },
+              ].map(item => (
+                <Link key={item.href} href={item.href} onClick={() => setProfileOpen(false)}
+                  className="flex items-center px-4 py-2.5 text-sm transition-colors"
+                  style={{ color: 'var(--text-mid)' }}
+                  onMouseEnter={e => (e.currentTarget as any).style.background = 'var(--bg-subtle)'}
+                  onMouseLeave={e => (e.currentTarget as any).style.background = ''}>
+                  {item.label}
                 </Link>
-                <Link
-                  href="/settings"
-                  className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-[#A09880] hover:text-[#F5F0E8] hover:bg-white/[0.05] transition-colors"
-                >
-                  <Settings size={15} />
-                  Settings
-                </Link>
-                <div className="border-t border-white/[0.07] my-1" />
-                <button
-                  onClick={logout}
-                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-400 hover:bg-red-400/10 transition-colors"
-                >
-                  <LogOut size={15} />
-                  Sign Out
+              ))}
+              <div style={{ borderTop: '1px solid var(--border)', marginTop: 4, paddingTop: 4 }}>
+                <button onClick={logout} className="flex items-center gap-3 px-4 py-2.5 text-sm transition-colors w-full"
+                  style={{ color: 'var(--text-muted)' }}
+                  onMouseEnter={e => { (e.currentTarget as any).style.background = '#FEE2E2'; (e.currentTarget as any).style.color = '#DC2626' }}
+                  onMouseLeave={e => { (e.currentTarget as any).style.background = ''; (e.currentTarget as any).style.color = 'var(--text-muted)' }}>
+                  <LogOut size={14} />Sign Out
                 </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </header>
-  );
+  )
 }

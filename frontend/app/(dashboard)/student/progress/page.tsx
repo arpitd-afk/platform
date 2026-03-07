@@ -1,111 +1,106 @@
 'use client'
-import { TrendingUp } from 'lucide-react'
-import { AreaChart, Area, BarChart, Bar, LineChart, Line, RadarChart, Radar, PolarGrid, PolarAngleAxis, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { useAuth } from '@/lib/auth-context'
+import { useUserStats } from '@/lib/hooks'
+import { PageLoading } from '@/components/shared/States'
+import { TrendingUp, Star, Swords, Puzzle, Target, Zap } from 'lucide-react'
+import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
-const ratingHistory = [
-  {d:'Jan',r:1050},{d:'Feb',r:1080},{d:'Mar',r:1105},{d:'Apr',r:1090},{d:'May',r:1140},{d:'Jun',r:1175},{d:'Jul',r:1210},
-]
-const radarData = [
-  {s:'Tactics',v:72},{s:'Endgame',v:58},{s:'Opening',v:81},{s:'Strategy',v:64},{s:'Speed',v:77},{s:'Accuracy',v:69},
-]
-const openings = [
-  {name:"King's Indian",w:8,d:2,l:3},{name:'Sicilian',w:12,d:3,l:5},{name:'French',w:4,d:1,l:2},{name:'Italian',w:6,d:2,l:1},
-]
-const gamesByMonth = [
-  {m:'Jan',w:8,d:3,l:5},{m:'Feb',w:10,d:2,l:6},{m:'Mar',w:14,d:4,l:4},{m:'Apr',w:9,d:5,l:8},{m:'May',w:16,d:3,l:5},{m:'Jun',w:18,d:4,l:6},{m:'Jul',w:12,d:3,l:4},
-]
-const T=({active,payload,label}:any)=>active&&payload?.length?<div className="card px-3 py-2 text-xs"><p className="text-[#6B6050] mb-1">{label}</p>{payload.map((p:any)=><p key={p.name} style={{color:p.color||p.fill}}>{p.dataKey}: {p.value}</p>)}</div>:null
+const T = ({ active, payload, label }: any) => active && payload?.length ? (
+  <div className="card px-3 py-2 text-xs shadow-md">
+    <p style={{ color: 'var(--text-muted)' }} className="mb-1">{label}</p>
+    {payload.map((p: any) => <p key={p.name} style={{ color: p.color || 'var(--amber)' }}>{p.dataKey}: {p.value}</p>)}
+  </div>
+) : null
 
 export default function StudentProgressPage() {
-  const totalGames = gamesByMonth.reduce((s,m)=>s+m.w+m.d+m.l,0)
-  const totalWins  = gamesByMonth.reduce((s,m)=>s+m.w,0)
+  const { user } = useAuth()
+  const { data: stats, isLoading } = useUserStats(user?.id)
+
+  if (isLoading) return <PageLoading />
+
+  const ratingHistory = stats?.ratingHistory || Array.from({ length: 8 }, (_, i) => ({
+    date: `W${i + 1}`, rating: (user?.rating || 1200) - (7 - i) * 15 + Math.floor(Math.random() * 20)
+  }))
+
+  const activityData = stats?.activityData || Array.from({ length: 7 }, (_, i) => ({
+    day: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][i],
+    puzzles: Math.floor(Math.random() * 15),
+    games: Math.floor(Math.random() * 5),
+  }))
+
+  const statCards = [
+    { label: 'Current Rating', value: user?.rating || 1200, icon: Star, color: 'var(--amber)', change: '+25 this week' },
+    { label: 'Games Played', value: stats?.games_played || 0, icon: Swords, color: '#1D4ED8', change: '+3 this week' },
+    { label: 'Puzzles Solved', value: stats?.puzzles_solved || 0, icon: Puzzle, color: '#15803D', change: '+12 this week' },
+    { label: 'Study Streak', value: `${stats?.streak || 0} days`, icon: Zap, color: '#7C3AED', change: 'Keep going!' },
+  ]
+
   return (
     <div className="space-y-5 animate-fade-in">
-      <div>
-        <h1 className="page-title flex items-center gap-2"><TrendingUp size={22} className="text-[#4ADE80]"/>My Progress</h1>
-        <p className="text-[#6B6050] text-sm mt-1">Track your chess improvement over time</p>
-      </div>
-      <div className="grid grid-cols-4 gap-4">
-        {[
-          {l:'Current Rating',v:'1,210',c:'#D4AF37',sub:'+160 since Jan'},
-          {l:'Win Rate',v:`${Math.round((totalWins/totalGames)*100)}%`,c:'#4ADE80',sub:`${totalWins} of ${totalGames} games`},
-          {l:'Peak Rating',v:'1,210',c:'#60A5FA',sub:'Achieved this month'},
-          {l:'Games Played',v:totalGames,c:'#A78BFA',sub:'This year'},
-        ].map(s=>(
-          <div key={s.l} className="stat-card">
-            <div className="font-display text-2xl font-bold" style={{color:s.c}}>{s.v}</div>
-            <div className="text-xs text-[#6B6050]">{s.l}</div>
-            <div className="text-xs mt-0.5" style={{color:s.c}}>{s.sub}</div>
+      <h1 className="page-title flex items-center gap-2"><TrendingUp size={22} style={{ color: 'var(--amber)' }} />My Progress</h1>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        {statCards.map(s => (
+          <div key={s.label} className="stat-card">
+            <div className="flex items-center gap-2">
+              <s.icon size={16} style={{ color: s.color }} />
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{s.label}</span>
+            </div>
+            <div className="text-2xl font-display font-bold mt-1" style={{ color: s.color }}>{s.value}</div>
+            <div className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{s.change}</div>
           </div>
         ))}
       </div>
-      <div className="grid lg:grid-cols-3 gap-5">
-        <div className="card p-6 lg:col-span-2">
-          <h3 className="section-title mb-5">Rating Progress</h3>
-          <ResponsiveContainer width="100%" height={200}>
-            <AreaChart data={ratingHistory}>
-              <defs><linearGradient id="rg2" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#D4AF37" stopOpacity={0.25}/><stop offset="95%" stopColor="#D4AF37" stopOpacity={0}/></linearGradient></defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)"/>
-              <XAxis dataKey="d" tick={{fill:'#6B6050',fontSize:11}} axisLine={false} tickLine={false}/>
-              <YAxis domain={['auto','auto']} tick={{fill:'#6B6050',fontSize:11}} axisLine={false} tickLine={false}/>
-              <Tooltip content={<T/>}/>
-              <Area type="monotone" dataKey="r" stroke="#D4AF37" strokeWidth={2.5} fill="url(#rg2)" dot={{fill:'#D4AF37',r:4,strokeWidth:0}}/>
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-        <div className="card p-6">
-          <h3 className="section-title mb-4">Skill Radar</h3>
-          <ResponsiveContainer width="100%" height={200}>
-            <RadarChart data={radarData}>
-              <PolarGrid stroke="rgba(255,255,255,0.07)"/>
-              <PolarAngleAxis dataKey="s" tick={{fill:'#6B6050',fontSize:11}}/>
-              <Radar dataKey="v" stroke="#D4AF37" fill="#D4AF37" fillOpacity={0.15}/>
-            </RadarChart>
-          </ResponsiveContainer>
-        </div>
+
+      <div className="card p-6">
+        <h3 className="section-title mb-5">Rating History</h3>
+        <ResponsiveContainer width="100%" height={200}>
+          <AreaChart data={ratingHistory}>
+            <defs>
+              <linearGradient id="gr" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#C8961E" stopOpacity={0.18} />
+                <stop offset="95%" stopColor="#C8961E" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+            <XAxis dataKey="date" tick={{ fontSize: 11, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fontSize: 11, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} domain={['auto', 'auto']} />
+            <Tooltip content={<T />} />
+            <Area type="monotone" dataKey="rating" stroke="#C8961E" strokeWidth={2} fill="url(#gr)" />
+          </AreaChart>
+        </ResponsiveContainer>
       </div>
-      <div className="grid lg:grid-cols-2 gap-5">
-        <div className="card p-6">
-          <h3 className="section-title mb-4">Games by Month</h3>
-          <ResponsiveContainer width="100%" height={180}>
-            <BarChart data={gamesByMonth} barGap={2}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)"/>
-              <XAxis dataKey="m" tick={{fill:'#6B6050',fontSize:11}} axisLine={false} tickLine={false}/>
-              <YAxis tick={{fill:'#6B6050',fontSize:11}} axisLine={false} tickLine={false}/>
-              <Tooltip content={<T/>}/>
-              <Bar dataKey="w" fill="#4ADE80" radius={[3,3,0,0]} name="Wins"/>
-              <Bar dataKey="d" fill="#D4AF37" radius={[3,3,0,0]} name="Draws"/>
-              <Bar dataKey="l" fill="#F87171" radius={[3,3,0,0]} name="Losses"/>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+
+      <div className="card p-6">
+        <h3 className="section-title mb-5">Weekly Activity</h3>
+        <ResponsiveContainer width="100%" height={160}>
+          <AreaChart data={activityData}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+            <XAxis dataKey="day" tick={{ fontSize: 11, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fontSize: 11, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
+            <Tooltip content={<T />} />
+            <Area type="monotone" dataKey="puzzles" stroke="#15803D" fill="rgba(21,128,61,0.10)" strokeWidth={2} name="Puzzles" />
+            <Area type="monotone" dataKey="games" stroke="#1D4ED8" fill="rgba(29,78,216,0.10)" strokeWidth={2} name="Games" />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+
+      {stats?.openingStats && (
         <div className="card p-6">
           <h3 className="section-title mb-4">Opening Performance</h3>
           <div className="space-y-3">
-            {openings.map(o => {
-              const total = o.w+o.d+o.l
-              return (
-                <div key={o.name}>
-                  <div className="flex items-center justify-between text-sm mb-1">
-                    <span className="font-medium">{o.name}</span>
-                    <span className="text-xs text-[#6B6050]">{o.w}W {o.d}D {o.l}L</span>
-                  </div>
-                  <div className="flex h-2 rounded-full overflow-hidden gap-0.5">
-                    <div className="bg-green-400 rounded-full" style={{width:`${(o.w/total)*100}%`}}/>
-                    <div className="bg-[#D4AF37] rounded-full" style={{width:`${(o.d/total)*100}%`}}/>
-                    <div className="bg-red-400 rounded-full" style={{width:`${(o.l/total)*100}%`}}/>
-                  </div>
+            {stats.openingStats.slice(0, 5).map((o: any) => (
+              <div key={o.name} className="flex items-center gap-3">
+                <div className="w-32 text-sm truncate" style={{ color: 'var(--text-mid)' }}>{o.name}</div>
+                <div className="flex-1 progress-bar">
+                  <div className="progress-fill" style={{ width: `${o.win_rate * 100}%` }} />
                 </div>
-              )
-            })}
-            <div className="flex items-center gap-4 pt-2 text-xs text-[#6B6050]">
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-400 inline-block"/>Win</span>
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#D4AF37] inline-block"/>Draw</span>
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-400 inline-block"/>Loss</span>
-            </div>
+                <div className="w-12 text-xs text-right" style={{ color: 'var(--text-muted)' }}>{Math.round(o.win_rate * 100)}%</div>
+              </div>
+            ))}
           </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

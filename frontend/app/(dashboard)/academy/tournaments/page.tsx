@@ -1,98 +1,86 @@
 'use client'
-// tournaments page
 import { useState } from 'react'
-import { Trophy, Plus, Users, Clock, Calendar } from 'lucide-react'
+import { useAuth } from '@/lib/auth-context'
+import { useTournaments, useCreateTournament } from '@/lib/hooks'
+import { PageLoading, EmptyState } from '@/components/shared/States'
+import Modal from '@/components/shared/Modal'
+import { Trophy, Plus, Users, Clock, Calendar, Loader2 } from 'lucide-react'
 
-const TOURNAMENTS = [
-  { id: 1, name: 'Summer Open 2024', format: 'Swiss', status: 'live', players: 48, maxPlayers: 64, rounds: 7, currentRound: 3, timeControl: '10+5', starts: 'In progress' },
-  { id: 2, name: 'Beginner Cup', format: 'Round Robin', status: 'upcoming', players: 12, maxPlayers: 16, rounds: 5, currentRound: 0, timeControl: '15+10', starts: 'Jul 20, 10:00 AM' },
-  { id: 3, name: 'Blitz Championship', format: 'Arena', status: 'upcoming', players: 32, maxPlayers: 100, rounds: 0, currentRound: 0, timeControl: '3+2', starts: 'Jul 22, 6:00 PM' },
-  { id: 4, name: 'Inter-Academy Cup', format: 'Knockout', status: 'completed', players: 32, maxPlayers: 32, rounds: 5, currentRound: 5, timeControl: '10+0', starts: 'Completed' },
-]
-const STANDINGS = [
-  { rank: 1, name: 'Rohit Verma', rating: 1540, points: 2.5, tb: 8.25 },
-  { rank: 2, name: 'Kiran Kumar', rating: 1420, points: 2.0, tb: 7.50 },
-  { rank: 3, name: 'Arjun Sharma', rating: 1210, points: 2.0, tb: 6.75 },
-  { rank: 4, name: 'Priya Nair', rating: 980, points: 1.5, tb: 5.50 },
-  { rank: 5, name: 'Meera Patel', rating: 750, points: 0.5, tb: 4.00 },
-]
+const STATUS_BADGE: Record<string, string> = { live: 'badge-red', upcoming: 'badge-gold', registration: 'badge-blue', completed: 'badge-gray', cancelled: 'badge-gray' }
+const FORMATS = ['swiss', 'round_robin', 'arena', 'knockout']
 
-const STATUS_STYLE: any = {
-  live:      'badge-red',
-  upcoming:  'badge-gold',
-  completed: 'badge-gray',
-}
+export default function AcademyTournamentsPage() {
+  const { user } = useAuth()
+  const { data: tournaments = [], isLoading } = useTournaments()
+  const create = useCreateTournament()
+  const [showModal, setShowModal] = useState(false)
+  const [form, setForm] = useState({ name: '', format: 'swiss', timeControl: '10+5', rounds: 5, maxPlayers: 64, startsAt: '', description: '', entryFee: 0, prizePool: 0 })
 
-export default function TournamentsPage() {
-  const [selected, setSelected] = useState<number | null>(1)
+  if (isLoading) return <PageLoading />
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault()
+    await create.mutateAsync(form)
+    setShowModal(false)
+  }
+
   return (
     <div className="space-y-5 animate-fade-in">
       <div className="flex items-center justify-between">
-        <h1 className="page-title flex items-center gap-2"><Trophy size={22} className="text-[#D4AF37]" />Tournaments</h1>
-        <button className="btn-primary text-sm"><Plus size={15} />Create Tournament</button>
+        <h1 className="page-title flex items-center gap-2"><Trophy size={22} className="text-[var(--amber)]" />Tournaments</h1>
+        <button onClick={() => setShowModal(true)} className="btn-primary text-sm"><Plus size={15} />Create Tournament</button>
       </div>
 
-      <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {TOURNAMENTS.map(t => (
-          <button key={t.id} onClick={() => setSelected(t.id)}
-            className={`card p-4 text-left transition-all ${selected === t.id ? 'border-[#D4AF37]/40 bg-[#D4AF37]/5' : 'card-hover'}`}>
-            <div className="flex items-start justify-between mb-3">
-              <span className={`badge text-xs ${STATUS_STYLE[t.status]}`}>{t.status}</span>
-              <span className="badge-gray text-xs">{t.format}</span>
-            </div>
-            <div className="font-semibold text-sm mb-2 line-clamp-2">{t.name}</div>
-            <div className="flex items-center gap-3 text-xs text-[#6B6050]">
-              <span className="flex items-center gap-1"><Users size={11} />{t.players}/{t.maxPlayers}</span>
-              <span className="flex items-center gap-1"><Clock size={11} />{t.timeControl}</span>
-            </div>
-            {t.status === 'live' && (
-              <div className="mt-2">
-                <div className="text-xs text-[#6B6050] mb-1">Round {t.currentRound}/{t.rounds}</div>
-                <div className="progress-bar"><div className="progress-fill" style={{ width: `${(t.currentRound/t.rounds)*100}%` }} /></div>
-              </div>
-            )}
-          </button>
+      <div className="grid grid-cols-4 gap-4">
+        {[{ s: 'live', c: '#F87171' }, { s: 'upcoming', c: '#D4AF37' }, { s: 'registration', c: '#60A5FA' }, { s: 'completed', c: '#4ADE80' }].map(x => (
+          <div key={x.s} className="stat-card"><div className="font-display text-2xl font-bold" style={{ color: x.c }}>{tournaments.filter((t: any) => t.status === x.s).length}</div><div className="text-xs text-[var(--text-muted)] capitalize">{x.s}</div></div>
         ))}
       </div>
 
-      {selected && (
-        <div className="card overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.07]">
-            <h3 className="section-title">Live Standings — {TOURNAMENTS.find(t => t.id === selected)?.name}</h3>
-          </div>
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-white/[0.07]">
-                <th className="th text-center w-16">Rank</th>
-                <th className="th">Player</th>
-                <th className="th text-center">Rating</th>
-                <th className="th text-center">Points</th>
-                <th className="th text-center">Buchholz</th>
-              </tr>
-            </thead>
-            <tbody>
-              {STANDINGS.map(s => (
-                <tr key={s.rank} className="tr">
-                  <td className="td text-center">
-                    <span className={`font-bold ${s.rank === 1 ? 'text-[#D4AF37]' : s.rank === 2 ? 'text-[#C0C0C0]' : s.rank === 3 ? 'text-[#CD7F32]' : 'text-[#6B6050]'}`}>
-                      {s.rank === 1 ? '🥇' : s.rank === 2 ? '🥈' : s.rank === 3 ? '🥉' : s.rank}
-                    </span>
-                  </td>
-                  <td className="td">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-7 h-7 rounded-full bg-[#D4AF37]/15 flex items-center justify-center text-xs font-bold text-[#D4AF37]">{s.name[0]}</div>
-                      <span className="font-medium">{s.name}</span>
-                    </div>
-                  </td>
-                  <td className="td text-center font-mono">{s.rating}</td>
-                  <td className="td text-center font-bold text-[#D4AF37]">{s.points}</td>
-                  <td className="td text-center text-[#A09880]">{s.tb}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {tournaments.length === 0 ? (
+        <div className="card"><EmptyState title="No tournaments yet" subtitle="Create your first tournament"
+          action={<button onClick={() => setShowModal(true)} className="btn-primary text-sm">Create Tournament</button>} /></div>
+      ) : (
+        <div className="grid md:grid-cols-2 gap-4">
+          {tournaments.map((t: any) => (
+            <div key={t.id} className={`card p-5 ${t.status === 'live' ? 'border-red-400/30' : ''}`}>
+              <div className="flex items-start justify-between mb-3">
+                <span className={`badge text-xs ${STATUS_BADGE[t.status] || 'badge-gray'}`}>{t.status}</span>
+                <span className="badge-gray text-xs capitalize">{t.format?.replace('_', ' ')}</span>
+              </div>
+              <h3 className="font-semibold mb-1">{t.name}</h3>
+              {t.description && <p className="text-xs text-[var(--text-muted)] mb-3">{t.description}</p>}
+              <div className="flex flex-wrap items-center gap-3 text-xs text-[var(--text-mid)]">
+                <span className="flex items-center gap-1"><Users size={11} />{t.registered_count || 0}/{t.max_players}</span>
+                <span className="flex items-center gap-1"><Clock size={11} />{t.time_control}</span>
+                {t.starts_at && <span className="flex items-center gap-1"><Calendar size={11} />{new Date(t.starts_at).toLocaleDateString()}</span>}
+                {t.rounds > 0 && <span>R{t.current_round}/{t.rounds}</span>}
+              </div>
+              {t.prize_pool > 0 && <div className="text-sm font-bold text-[var(--amber)] mt-2">Prize: ₹{t.prize_pool}</div>}
+            </div>
+          ))}
         </div>
       )}
+
+      {showModal && <Modal onClose={() => setShowModal(false)} title="Create Tournament" size="lg">
+        <form onSubmit={handleCreate} className="space-y-4">
+          <div><label className="label">Tournament Name</label><input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="input" placeholder="Summer Open 2024" /></div>
+          <div className="grid grid-cols-2 gap-4">
+            <div><label className="label">Format</label><select value={form.format} onChange={e => setForm({ ...form, format: e.target.value })} className="input capitalize">{FORMATS.map(f => <option key={f} value={f}>{f.replace('_', ' ')}</option>)}</select></div>
+            <div><label className="label">Time Control</label><input value={form.timeControl} onChange={e => setForm({ ...form, timeControl: e.target.value })} className="input" placeholder="10+5" /></div>
+            <div><label className="label">Rounds</label><input type="number" value={form.rounds} onChange={e => setForm({ ...form, rounds: parseInt(e.target.value) })} className="input" /></div>
+            <div><label className="label">Max Players</label><input type="number" value={form.maxPlayers} onChange={e => setForm({ ...form, maxPlayers: parseInt(e.target.value) })} className="input" /></div>
+            <div><label className="label">Entry Fee (₹)</label><input type="number" value={form.entryFee} onChange={e => setForm({ ...form, entryFee: parseFloat(e.target.value) })} className="input" /></div>
+            <div><label className="label">Prize Pool (₹)</label><input type="number" value={form.prizePool} onChange={e => setForm({ ...form, prizePool: parseFloat(e.target.value) })} className="input" /></div>
+          </div>
+          <div><label className="label">Starts At</label><input required type="datetime-local" value={form.startsAt} onChange={e => setForm({ ...form, startsAt: e.target.value })} className="input" /></div>
+          <div><label className="label">Description</label><textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} className="input resize-none h-16" /></div>
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={() => setShowModal(false)} className="btn-secondary flex-1">Cancel</button>
+            <button type="submit" disabled={create.isPending} className="btn-primary flex-1">{create.isPending ? 'Creating...' : 'Create Tournament'}</button>
+          </div>
+        </form>
+      </Modal>}
     </div>
   )
 }

@@ -1,134 +1,98 @@
 'use client'
-
+import { useAuth } from '@/lib/auth-context'
+import { useUsers } from '@/lib/hooks'
+import { PageLoading } from '@/components/shared/States'
+import Avatar from '@/components/shared/Avatar'
 import Link from 'next/link'
-import { TrendingUp, Calendar, FileText, CreditCard, CheckCircle2, ArrowUpRight, Star } from 'lucide-react'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
-
-const children = [
-  {
-    name: 'Arjun Sharma', age: 14, rating: 1210, ratingChange: '+160',
-    coach: 'Vikram Nair', batch: 'Intermediate A', attendance: 92,
-    homeworkDone: 4, homeworkTotal: 5, nextClass: 'Today 4:00 PM',
-    history: [{ m: 'Jan', r: 1050 }, { m: 'Feb', r: 1080 }, { m: 'Mar', r: 1110 }, { m: 'Apr', r: 1145 }, { m: 'May', r: 1175 }, { m: 'Jun', r: 1210 }],
-  },
-  {
-    name: 'Priya Sharma', age: 11, rating: 780, ratingChange: '+120',
-    coach: 'Meera Joshi', batch: 'Beginner B', attendance: 85,
-    homeworkDone: 3, homeworkTotal: 3, nextClass: 'Tomorrow 5:00 PM',
-    history: [{ m: 'Jan', r: 660 }, { m: 'Feb', r: 700 }, { m: 'Mar', r: 720 }, { m: 'Apr', r: 740 }, { m: 'May', r: 760 }, { m: 'Jun', r: 780 }],
-  },
-]
-
-const T = ({ active, payload }: any) => active && payload?.length
-  ? <div className="card px-3 py-2 text-xs text-[#D4AF37] font-semibold">{payload[0].value}</div>
-  : null
+import { Users, TrendingUp, Calendar, ClipboardList, ArrowUpRight, Star, UserPlus } from 'lucide-react'
 
 export default function ParentDashboard() {
+  const { user } = useAuth()
+  const { data: children = [], isLoading } = useUsers({ role: 'student', parentId: user?.id })
+
+  if (isLoading) return <PageLoading />
+
   return (
     <div className="space-y-6 animate-fade-in">
-      <div>
-        <h1 className="page-title">Parent Dashboard</h1>
-        <p className="text-[#6B6050] text-sm mt-1">Track your children's chess progress</p>
+      <div className="card p-6 flex items-center gap-5"
+        style={{ background: 'linear-gradient(135deg, #FFFCF8 0%, rgba(190,24,93,0.04) 100%)' }}>
+        <Avatar user={user} size="lg" />
+        <div className="flex-1">
+          <h1 className="font-display text-2xl font-bold">Hello, {user?.name?.split(' ')[0]}! 👋</h1>
+          <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
+            {children.length > 0
+              ? `Monitoring ${children.length} child${children.length > 1 ? 'ren' : ''}'s chess journey`
+              : 'Contact your academy to link your children to your account'}
+          </p>
+        </div>
       </div>
 
-      {children.map((child, ci) => (
-        <div key={ci} className="card overflow-hidden">
-          <div className="flex items-center gap-4 px-6 py-4 border-b border-white/[0.07]">
-            <div className="w-12 h-12 rounded-full bg-[#A78BFA]/20 flex items-center justify-center text-lg font-bold text-[#A78BFA]">
-              {child.name[0]}
-            </div>
-            <div className="flex-1">
-              <div className="flex items-center gap-2">
-                <h3 className="text-lg font-semibold">{child.name}</h3>
-                <span className="text-xs text-[#6B6050]">Age {child.age}</span>
-              </div>
-              <div className="flex items-center gap-4 text-xs text-[#6B6050] mt-0.5">
-                <span>Coach: {child.coach}</span>
-                <span>·</span>
-                <span>{child.batch}</span>
-                <span>·</span>
-                <span className="text-[#4ADE80]">Next: {child.nextClass}</span>
-              </div>
-            </div>
-            <div className="text-right">
-              <div className="flex items-center gap-1.5 justify-end">
-                <Star size={15} className="text-[#D4AF37]" />
-                <span className="font-display text-2xl font-bold">{child.rating}</span>
-              </div>
-              <span className="text-xs text-green-400">{child.ratingChange} this year</span>
-            </div>
-          </div>
-
-          <div className="p-6 grid md:grid-cols-3 gap-6">
-            <div className="space-y-3">
-              <h4 className="text-xs font-semibold text-[#6B6050] uppercase tracking-wider">This Month</h4>
-              {[
-                { label: 'Attendance', value: `${child.attendance}%`, color: child.attendance >= 90 ? '#4ADE80' : '#D4AF37', icon: Calendar },
-                { label: 'Homework', value: `${child.homeworkDone}/${child.homeworkTotal}`, color: child.homeworkDone === child.homeworkTotal ? '#4ADE80' : '#D4AF37', icon: FileText },
-              ].map((s, i) => (
-                <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-white/[0.03]">
-                  <div className="flex items-center gap-2 text-sm text-[#A09880]">
-                    <s.icon size={14} style={{ color: s.color }} />{s.label}
+      {children.length > 0 && (
+        <div>
+          <h2 className="section-title mb-3">My Children</h2>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {children.map((child: any) => (
+              <div key={child.id} className="card p-5 space-y-4">
+                <div className="flex items-center gap-3">
+                  <Avatar user={child} size="md" />
+                  <div>
+                    <div className="font-semibold" style={{ color: 'var(--text)' }}>{child.name}</div>
+                    <div className="text-xs" style={{ color: 'var(--text-muted)' }}>{child.batch_name || 'No batch assigned'}</div>
                   </div>
-                  <span className="font-semibold text-sm" style={{ color: s.color }}>{s.value}</span>
                 </div>
-              ))}
-            </div>
-
-            <div>
-              <h4 className="text-xs font-semibold text-[#6B6050] uppercase tracking-wider mb-3">Rating History</h4>
-              <ResponsiveContainer width="100%" height={110}>
-                <LineChart data={child.history}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-                  <XAxis dataKey="m" tick={{ fill: '#6B6050', fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <YAxis domain={['auto','auto']} tick={{ fill: '#6B6050', fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <Tooltip content={<T />} />
-                  <Line type="monotone" dataKey="r" stroke="#D4AF37" strokeWidth={2} dot={false} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-
-            <div>
-              <h4 className="text-xs font-semibold text-[#6B6050] uppercase tracking-wider mb-3">Coach Notes</h4>
-              <div className="space-y-2">
-                {[
-                  { text: `${child.name.split(' ')[0]} showed excellent endgame technique this week.`, date: '3 days ago' },
-                  { text: 'Needs to work on time management in rapid games.', date: '1 week ago' },
-                ].map((fb, i) => (
-                  <div key={i} className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.05]">
-                    <p className="text-xs text-[#A09880] leading-relaxed">{fb.text}</p>
-                    <p className="text-[10px] text-[#6B6050] mt-1">{fb.date}</p>
+                <div className="grid grid-cols-2 gap-2 text-center">
+                  <div className="rounded-lg p-2.5" style={{ background: 'var(--bg-subtle)' }}>
+                    <div className="flex items-center justify-center gap-1 font-bold" style={{ color: 'var(--amber)' }}>
+                      <Star size={12} />{child.rating || 1200}
+                    </div>
+                    <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>ELO Rating</div>
                   </div>
-                ))}
+                  <div className="rounded-lg p-2.5" style={{ background: 'var(--bg-subtle)' }}>
+                    <div className="font-bold text-sm" style={{ color: '#1D4ED8' }}>{child.games_played || 0}</div>
+                    <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Games</div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <Link href="/parent/progress" className="text-center text-xs py-2 rounded-xl font-medium transition-all btn-secondary">
+                    <TrendingUp size={12} className="mx-auto mb-0.5" />Progress
+                  </Link>
+                  <Link href="/parent/attendance" className="text-center text-xs py-2 rounded-xl font-medium transition-all btn-secondary">
+                    <Calendar size={12} className="mx-auto mb-0.5" />Attend.
+                  </Link>
+                  <Link href="/parent/homework" className="text-center text-xs py-2 rounded-xl font-medium transition-all btn-secondary">
+                    <ClipboardList size={12} className="mx-auto mb-0.5" />Work
+                  </Link>
+                </div>
               </div>
-            </div>
+            ))}
           </div>
         </div>
-      ))}
+      )}
 
-      {/* Payments */}
-      <div className="card overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.07]">
-          <h3 className="section-title flex items-center gap-2"><CreditCard size={16} className="text-[#A78BFA]" />Payments</h3>
-          <Link href="/parent/payments" className="text-xs text-[#A78BFA] flex items-center gap-1">View all <ArrowUpRight size={12} /></Link>
-        </div>
+      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { desc: 'Monthly Fee — July 2024', amount: '₹3,500', date: 'Jul 1' },
-          { desc: 'Tournament Entry — Summer Open', amount: '₹500', date: 'Jun 28' },
-          { desc: 'Monthly Fee — June 2024', amount: '₹3,500', date: 'Jun 1' },
-        ].map((p, i) => (
-          <div key={i} className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.04] last:border-0">
-            <div>
-              <div className="text-sm font-medium">{p.desc}</div>
-              <div className="text-xs text-[#6B6050] mt-0.5">{p.date}</div>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="font-semibold text-sm">{p.amount}</span>
-              <span className="badge-green text-xs"><CheckCircle2 size={10} /> Paid</span>
-            </div>
-          </div>
+          { label: 'Children', value: children.length, icon: Users, color: '#BE185D', href: '/parent/children' },
+          { label: 'Upcoming Classes', value: 0, icon: Calendar, color: '#1D4ED8', href: '/parent/attendance' },
+          { label: 'Pending Homework', value: 0, icon: ClipboardList, color: '#9A6E00', href: '/parent/homework' },
+          { label: 'Monthly Progress', value: '+0%', icon: TrendingUp, color: '#15803D', href: '/parent/progress' },
+        ].map(s => (
+          <Link key={s.label} href={s.href} className="stat-card hover:shadow-md transition-all">
+            <s.icon size={18} style={{ color: s.color }} />
+            <div className="text-2xl font-display font-bold mt-1" style={{ color: s.color }}>{s.value}</div>
+            <div className="text-xs" style={{ color: 'var(--text-muted)' }}>{s.label}</div>
+          </Link>
         ))}
       </div>
+
+      {children.length === 0 && (
+        <div className="card p-10 text-center">
+          <UserPlus size={40} className="mx-auto mb-3" style={{ color: 'var(--border-md)' }} />
+          <h3 className="font-semibold mb-2">No children linked</h3>
+          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+            Ask your academy admin or coach to link your child's account to this parent profile.
+          </p>
+        </div>
+      )}
     </div>
   )
 }

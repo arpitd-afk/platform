@@ -1,50 +1,95 @@
 'use client'
 import { useState } from 'react'
-import { Settings, Save, Bell, Shield, User } from 'lucide-react'
+import { useAuth } from '@/lib/auth-context'
+import { useUpdateUser } from '@/lib/hooks'
+import Avatar from '@/components/shared/Avatar'
+import { Settings, Save, Loader2, Bell, Eye, EyeOff } from 'lucide-react'
+import toast from 'react-hot-toast'
+
 export default function CoachSettingsPage() {
-  const [name, setName] = useState('Coach Vikram')
-  const [bio, setBio] = useState('FIDE rated coach specialising in tactics and middlegame strategy. 8+ years of coaching experience.')
-  const [notifEmail, setNotifEmail] = useState(true)
-  const [notifSms, setNotifSms]     = useState(true)
-  const Toggle = ({v,set}:{v:boolean,set:(b:boolean)=>void}) => (
-    <button onClick={()=>set(!v)} className={`w-11 h-6 rounded-full transition-all relative ${v?'bg-[#D4AF37]':'bg-white/[0.10]'}`}>
-      <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${v?'left-6':'left-1'}`}/>
-    </button>
-  )
+  const { user, updateUser } = useAuth()
+  const update = useUpdateUser()
+  const [name, setName] = useState(user?.name || '')
+  const [bio, setBio] = useState('')
+  const [notifyAssignment, setNotifyAssignment] = useState(true)
+  const [notifyMessage, setNotifyMessage] = useState(true)
+  const [currentPass, setCurrentPass] = useState('')
+  const [newPass, setNewPass] = useState('')
+  const [showPass, setShowPass] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  const handleSave = async () => {
+    if (!user?.id) return
+    setSaving(true)
+    try {
+      await update.mutateAsync({ id: user.id, data: { name, bio } })
+      updateUser({ name })
+    } catch { toast.error('Failed to save') }
+    finally { setSaving(false) }
+  }
+
   return (
-    <div className="space-y-5 animate-fade-in max-w-2xl">
-      <h1 className="page-title flex items-center gap-2"><Settings size={22} className="text-[#A09880]"/>Settings</h1>
-      <div className="card p-6 space-y-4">
-        <h3 className="section-title flex items-center gap-2"><User size={16} className="text-[#4ADE80]"/>Profile</h3>
-        <div className="flex items-center gap-4">
-          <div className="w-16 h-16 rounded-full bg-[#4ADE80]/20 flex items-center justify-center text-2xl font-bold text-[#4ADE80]">V</div>
-          <button className="btn-secondary text-sm">Change Photo</button>
+    <div className="max-w-2xl mx-auto space-y-5 animate-fade-in">
+      <h1 className="page-title flex items-center gap-2"><Settings size={22} style={{ color: 'var(--amber)' }} />Settings</h1>
+
+      <div className="card p-6 space-y-5">
+        <h3 className="section-title">Profile</h3>
+        <div className="flex items-center gap-5">
+          <Avatar user={user} size="lg" editable onUpdate={avatar => updateUser({ avatar })} />
+          <div>
+            <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>Profile Photo</p>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Click the photo to upload a new image</p>
+          </div>
         </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div><label className="label">Full Name</label><input className="input" value={name} onChange={e=>setName(e.target.value)}/></div>
-          <div><label className="label">Email</label><input className="input" defaultValue="coach@demo.com"/></div>
-          <div><label className="label">Phone</label><input className="input" defaultValue="+91 98765 43210"/></div>
-          <div><label className="label">FIDE Rating</label><input className="input" defaultValue="2150"/></div>
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div><label className="label">Full Name</label><input className="input" value={name} onChange={e => setName(e.target.value)} /></div>
+          <div><label className="label">Email</label><input className="input" value={user?.email || ''} disabled /></div>
         </div>
-        <div><label className="label">Bio</label><textarea className="input h-24 resize-none" value={bio} onChange={e=>setBio(e.target.value)}/></div>
-        <div><label className="label">Specialization</label><input className="input" defaultValue="Tactics & Middlegame Strategy"/></div>
-        <button className="btn-primary flex items-center gap-2"><Save size={15}/>Save Profile</button>
+        <div>
+          <label className="label">Bio</label>
+          <textarea className="input resize-none h-20" placeholder="Tell students about yourself..." value={bio} onChange={e => setBio(e.target.value)} />
+        </div>
+        <button onClick={handleSave} disabled={saving} className="btn-primary flex items-center gap-2">
+          {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+          {saving ? 'Saving...' : 'Save Profile'}
+        </button>
       </div>
-      <div className="card p-6 space-y-3">
-        <h3 className="section-title flex items-center gap-2"><Bell size={16} className="text-[#D4AF37]"/>Notifications</h3>
+
+      <div className="card p-6 space-y-4">
+        <h3 className="section-title flex items-center gap-2"><Bell size={16} style={{ color: 'var(--amber)' }} />Notifications</h3>
         {[
-          {l:'Email reminders before class',v:notifEmail,set:setNotifEmail},
-          {l:'SMS alerts for student absences',v:notifSms,set:setNotifSms},
-        ].map((item,i)=>(
-          <div key={i} className="flex items-center justify-between py-2.5 border-b border-white/[0.05] last:border-0">
-            <span className="text-sm text-[#A09880]">{item.l}</span>
-            <Toggle v={item.v} set={item.set}/>
+          { label: 'New assignment submissions', value: notifyAssignment, set: setNotifyAssignment },
+          { label: 'New messages', value: notifyMessage, set: setNotifyMessage },
+        ].map(item => (
+          <div key={item.label} className="flex items-center justify-between py-2" style={{ borderBottom: '1px solid var(--border)' }}>
+            <span className="text-sm" style={{ color: 'var(--text-mid)' }}>{item.label}</span>
+            <button onClick={() => item.set(!item.value)}
+              className="relative w-11 h-6 rounded-full transition-all"
+              style={{ background: item.value ? 'var(--amber)' : 'var(--border-md)' }}>
+              <div className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all" style={{ left: item.value ? 22 : 2 }} />
+            </button>
           </div>
         ))}
       </div>
-      <div className="card p-6 space-y-3">
-        <h3 className="section-title flex items-center gap-2"><Shield size={16} className="text-[#60A5FA]"/>Security</h3>
-        <button className="btn-secondary text-sm">Change Password</button>
+
+      <div className="card p-6 space-y-4">
+        <h3 className="section-title">Change Password</h3>
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div>
+            <label className="label">Current Password</label>
+            <input className="input" type="password" value={currentPass} onChange={e => setCurrentPass(e.target.value)} placeholder="••••••••" />
+          </div>
+          <div>
+            <label className="label">New Password</label>
+            <div className="relative">
+              <input className="input pr-10" type={showPass ? 'text' : 'password'} value={newPass} onChange={e => setNewPass(e.target.value)} placeholder="••••••••" />
+              <button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-3 top-1/2 -translate-y-1/2 btn-icon w-7 h-7">
+                {showPass ? <EyeOff size={13} /> : <Eye size={13} />}
+              </button>
+            </div>
+          </div>
+        </div>
+        <button className="btn-secondary text-sm">Update Password</button>
       </div>
     </div>
   )

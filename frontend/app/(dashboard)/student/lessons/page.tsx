@@ -1,108 +1,140 @@
 'use client'
 import { useState } from 'react'
-import { BookMarked, Play, Lock, CheckCircle2, Clock, Star } from 'lucide-react'
+import { useAuth } from '@/lib/auth-context'
+import { useLessons, useMyLessonProgress, useCompleteLesson } from '@/lib/hooks'
+import { PageLoading, EmptyState } from '@/components/shared/States'
+import { BookOpen, Play, Lock, CheckCircle2, Clock, ChevronDown, ChevronRight } from 'lucide-react'
 
-const COURSES = [
-  {
-    id:'1', title:'Opening Principles', level:'Beginner', lessons:8, completed:8, color:'#4ADE80',
-    items:[
-      {id:'l1',title:'Control the Center',duration:'12 min',done:true},
-      {id:'l2',title:'Develop Your Pieces',duration:'15 min',done:true},
-      {id:'l3',title:'King Safety & Castling',duration:'18 min',done:true},
-      {id:'l4',title:'The Italian Game',duration:'20 min',done:true},
-      {id:'l5',title:'The Spanish Opening',duration:'22 min',done:true},
-      {id:'l6',title:'Avoiding Common Mistakes',duration:'14 min',done:true},
-      {id:'l7',title:'Creating a Plan',duration:'16 min',done:true},
-      {id:'l8',title:'Opening Quiz',duration:'10 min',done:true},
-    ]
-  },
-  {
-    id:'2', title:'Tactical Patterns', level:'Intermediate', lessons:10, completed:4, color:'#D4AF37',
-    items:[
-      {id:'l1',title:'Forks & Double Attacks',duration:'18 min',done:true},
-      {id:'l2',title:'Pins & Skewers',duration:'20 min',done:true},
-      {id:'l3',title:'Discovered Attacks',duration:'15 min',done:true},
-      {id:'l4',title:'Back Rank Weaknesses',duration:'12 min',done:true},
-      {id:'l5',title:'Knight Outposts',duration:'16 min',done:false},
-      {id:'l6',title:'Sacrifices & Combinations',duration:'25 min',done:false},
-      {id:'l7',title:'Deflection Tactics',duration:'18 min',done:false},
-      {id:'l8',title:'Interference',duration:'14 min',done:false},
-      {id:'l9',title:'Zugzwang',duration:'20 min',done:false},
-      {id:'l10',title:'Tactics Quiz',duration:'30 min',done:false},
-    ]
-  },
-  {
-    id:'3', title:'Sicilian Defense', level:'Intermediate', lessons:6, completed:0, color:'#60A5FA',
-    items:[
-      {id:'l1',title:'Introduction to Sicilian',duration:'15 min',done:false},
-      {id:'l2',title:'The Najdorf Variation',duration:'25 min',done:false},
-      {id:'l3',title:'The Dragon Variation',duration:'28 min',done:false},
-      {id:'l4',title:'The Classical Sicilian',duration:'22 min',done:false},
-      {id:'l5',title:'Anti-Sicilian Systems',duration:'20 min',done:false},
-      {id:'l6',title:'Sicilian Quiz',duration:'20 min',done:false},
-    ]
-  },
-]
+const LEVEL_COLOR: Record<string, string> = { beginner: '#4ADE80', intermediate: '#D4AF37', advanced: '#F87171', expert: '#A78BFA' }
 
 export default function LessonsPage() {
-  const [openCourse, setOpenCourse] = useState('2')
+  const { user } = useAuth()
+  const { data: lessons = [], isLoading } = useLessons({ academyId: user?.academyId })
+  const { data: progress = [] } = useMyLessonProgress()
+  const complete = useCompleteLesson()
+  const [expanded, setExpanded] = useState<string | null>(null)
+  const [filter, setFilter] = useState('all')
+
+  if (isLoading) return <PageLoading />
+
+  const completedIds = new Set(progress.filter((p: any) => p.completed).map((p: any) => p.lesson_id))
+  const completedCount = lessons.filter((l: any) => completedIds.has(l.id)).length
+
+  const filtered = filter === 'all' ? lessons :
+    filter === 'completed' ? lessons.filter((l: any) => completedIds.has(l.id)) :
+    filter === 'in_progress' ? lessons.filter((l: any) => !completedIds.has(l.id)) :
+    lessons.filter((l: any) => l.level === filter)
+
+  const handleComplete = async (lessonId: string) => {
+    await complete.mutateAsync(lessonId)
+  }
+
   return (
     <div className="space-y-5 animate-fade-in">
-      <div>
-        <h1 className="page-title flex items-center gap-2"><BookMarked size={22} className="text-[#60A5FA]"/>Lessons</h1>
-        <p className="text-[#6B6050] text-sm mt-1">Your personalised chess curriculum</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="page-title flex items-center gap-2"><BookOpen size={22} className="text-[#60A5FA]" />Lessons</h1>
+          <p className="text-[var(--text-muted)] text-sm mt-1">{completedCount} of {lessons.length} completed</p>
+        </div>
       </div>
-      <div className="grid grid-cols-3 gap-4">
-        {[{l:'Courses',v:COURSES.length,c:'#60A5FA'},{l:'Lessons Done',v:COURSES.reduce((s,c)=>s+c.completed,0),c:'#4ADE80'},{l:'Total Lessons',v:COURSES.reduce((s,c)=>s+c.lessons,0),c:'#D4AF37'}].map(s=>(
-          <div key={s.l} className="stat-card"><div className="font-display text-2xl font-bold" style={{color:s.c}}>{s.v}</div><div className="text-xs text-[#6B6050]">{s.l}</div></div>
+
+      {lessons.length > 0 && (
+        <div className="card p-4">
+          <div className="flex items-center justify-between text-sm mb-2">
+            <span className="text-[var(--text-mid)]">Overall Progress</span>
+            <span className="text-[#60A5FA] font-medium">{lessons.length > 0 ? Math.round((completedCount / lessons.length) * 100) : 0}%</span>
+          </div>
+          <div className="progress-bar h-2.5">
+            <div className="progress-fill" style={{ width: `${lessons.length > 0 ? (completedCount / lessons.length) * 100 : 0}%`, background: '#60A5FA' }} />
+          </div>
+        </div>
+      )}
+
+      <div className="flex items-center gap-1 card p-1 rounded-xl w-fit flex-wrap">
+        {['all', 'in_progress', 'completed', 'beginner', 'intermediate', 'advanced'].map(f => (
+          <button key={f} onClick={() => setFilter(f)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-all ${filter === f ? 'bg-[#60A5FA]/15 text-[#60A5FA]' : 'text-[var(--text-muted)] hover:text-[var(--text-mid)]'}`}>
+            {f.replace('_', ' ')}
+          </button>
         ))}
       </div>
-      <div className="space-y-4">
-        {COURSES.map(course => {
-          const pct = Math.round((course.completed/course.lessons)*100)
-          const isOpen = openCourse === course.id
-          return (
-            <div key={course.id} className="card overflow-hidden">
-              <button onClick={()=>setOpenCourse(isOpen?'':course.id)} className="w-full flex items-center gap-4 p-5 hover:bg-white/[0.02] transition-colors text-left">
-                <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{background:`${course.color}15`}}>
-                  <BookMarked size={20} style={{color:course.color}}/>
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h3 className="font-semibold">{course.title}</h3>
-                    <span className="badge-gray text-xs">{course.level}</span>
+
+      {filtered.length === 0 ? (
+        <div className="card">
+          <EmptyState title="No lessons available" subtitle="Lessons assigned by your academy will appear here" />
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filtered.map((lesson: any) => {
+            const done = completedIds.has(lesson.id)
+            const color = LEVEL_COLOR[lesson.level] || '#60A5FA'
+            const open = expanded === lesson.id
+            return (
+              <div key={lesson.id} className={`card overflow-hidden ${done ? 'opacity-80' : ''}`}>
+                <button onClick={() => setExpanded(open ? null : lesson.id)}
+                  className="w-full flex items-center gap-4 p-5 text-left hover:bg-[var(--bg)] transition-colors">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${done ? 'bg-green-500/15' : `bg-[${color}]/10`}`}
+                    style={{ background: done ? 'rgba(74,222,128,0.15)' : `${color}15` }}>
+                    {done ? <CheckCircle2 size={18} className="text-green-400" /> : <BookOpen size={18} style={{ color }} />}
                   </div>
-                  <div className="flex items-center gap-3 text-xs text-[#6B6050]">
-                    <span>{course.completed}/{course.lessons} lessons</span>
-                    <div className="flex-1 max-w-32 progress-bar"><div className="progress-fill" style={{width:`${pct}%`,background:course.color}}/></div>
-                    <span style={{color:course.color}}>{pct}%</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="badge text-xs capitalize" style={{ background: `${color}15`, color }}>{lesson.level}</span>
+                      {done && <span className="badge-green text-xs">Completed</span>}
+                    </div>
+                    <h3 className="font-semibold text-sm">{lesson.title}</h3>
+                    {lesson.description && <p className="text-xs text-[var(--text-muted)] truncate mt-0.5">{lesson.description}</p>}
                   </div>
-                </div>
-                {pct===100 && <CheckCircle2 size={18} className="text-green-400 flex-shrink-0"/>}
-              </button>
-              {isOpen && (
-                <div className="border-t border-white/[0.07]">
-                  {course.items.map((item,i) => {
-                    const locked = !item.done && course.items.slice(0,i).some(x=>!x.done)
-                    return (
-                      <div key={item.id} className={`flex items-center gap-4 px-5 py-3.5 border-b border-white/[0.04] last:border-0 ${locked?'opacity-50':''} hover:bg-white/[0.02] transition-colors`}>
-                        <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${item.done?'bg-green-500/20':'bg-white/[0.06]'}`}>
-                          {item.done ? <CheckCircle2 size={14} className="text-green-400"/> : locked ? <Lock size={13} className="text-[#6B6050]"/> : <Play size={13} style={{color:course.color}}/>}
+                  <div className="flex items-center gap-3 flex-shrink-0">
+                    {lesson.content?.duration && (
+                      <span className="text-xs text-[var(--text-muted)] flex items-center gap-1">
+                        <Clock size={11} />{lesson.content.duration}
+                      </span>
+                    )}
+                    {open ? <ChevronDown size={16} className="text-[var(--text-muted)]" /> : <ChevronRight size={16} className="text-[var(--text-muted)]" />}
+                  </div>
+                </button>
+
+                {open && (
+                  <div className="px-5 pb-5 border-t border-[var(--border)]">
+                    <div className="pt-4 space-y-4">
+                      {lesson.content?.pgn && (
+                        <div className="bg-white rounded-xl p-3">
+                          <div className="text-xs font-semibold text-[var(--amber)] mb-2">PGN</div>
+                          <p className="font-mono text-xs text-[var(--text-muted)] break-all">{lesson.content.pgn.slice(0, 200)}...</p>
                         </div>
-                        <div className="flex-1">
-                          <div className={`text-sm font-medium ${item.done?'text-[#6B6050] line-through':''}`}>{item.title}</div>
+                      )}
+                      {lesson.video_url && (
+                        <div className="aspect-video bg-white rounded-xl flex items-center justify-center">
+                          <div className="text-center">
+                            <Play size={32} className="text-[var(--amber)] mx-auto mb-2" />
+                            <p className="text-sm text-[var(--text-muted)]">Video lesson available</p>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-1.5 text-xs text-[#6B6050]"><Clock size={11}/>{item.duration}</div>
-                        {!locked && !item.done && <button className="btn-primary text-xs px-3 py-1.5">Start</button>}
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-          )
-        })}
-      </div>
+                      )}
+                      {lesson.tags?.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                          {lesson.tags.map((t: string) => <span key={t} className="badge-gray text-xs">{t}</span>)}
+                        </div>
+                      )}
+                      {!done ? (
+                        <button onClick={() => handleComplete(lesson.id)} disabled={complete.isPending}
+                          className="btn-primary text-sm flex items-center gap-2">
+                          <CheckCircle2 size={15} />{complete.isPending ? 'Marking...' : 'Mark as Complete'}
+                        </button>
+                      ) : (
+                        <div className="flex items-center gap-2 text-green-400 text-sm font-medium">
+                          <CheckCircle2 size={16} />Completed ✓
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
