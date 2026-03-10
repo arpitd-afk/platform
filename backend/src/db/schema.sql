@@ -341,9 +341,13 @@ CREATE TABLE IF NOT EXISTS invoices (
   billing_period_start TIMESTAMPTZ,
   billing_period_end   TIMESTAMPTZ,
   payment_id    VARCHAR(200),
+  razorpay_order_id   VARCHAR(100),
+  razorpay_payment_id VARCHAR(100),
   invoice_url   TEXT,
   gst_number    VARCHAR(50),
   gst_amount    DECIMAL(10,2),
+  description   TEXT,
+  paid_at       TIMESTAMPTZ,
   created_at    TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -470,3 +474,37 @@ CREATE TABLE IF NOT EXISTS activity_logs (
 );
 CREATE INDEX IF NOT EXISTS idx_activity_logs_academy ON activity_logs(academy_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_activity_logs_actor  ON activity_logs(actor_id, created_at DESC);
+
+-- ─── TOURNAMENT MATCHES ──────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS tournament_matches (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tournament_id   UUID REFERENCES tournaments(id) ON DELETE CASCADE NOT NULL,
+  round           INT NOT NULL,
+  board_number    INT DEFAULT 1,
+  white_id        UUID REFERENCES users(id) ON DELETE SET NULL,
+  black_id        UUID REFERENCES users(id) ON DELETE SET NULL,
+  is_bye          BOOLEAN DEFAULT false,
+  result          VARCHAR(20) CHECK (result IN ('white','black','draw','forfeit_white','forfeit_black')),
+  white_score     DECIMAL(3,1),
+  black_score     DECIMAL(3,1),
+  status          VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending','in_progress','completed')),
+  game_id         UUID REFERENCES games(id) ON DELETE SET NULL,
+  completed_at    TIMESTAMPTZ,
+  created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_tournament_matches_tournament ON tournament_matches(tournament_id);
+CREATE INDEX IF NOT EXISTS idx_tournament_matches_round ON tournament_matches(tournament_id, round);
+
+-- ─── Ensure tournament status includes 'registration' ────────────────────────
+-- Run manually if upgrading from previous version:
+-- ALTER TABLE tournaments DROP CONSTRAINT IF EXISTS tournaments_status_check;
+-- ALTER TABLE tournaments ADD CONSTRAINT tournaments_status_check
+--   CHECK (status IN ('upcoming','registration','live','completed','cancelled'));
+
+-- ─── INVOICE UPDATES (Razorpay fields) ───────────────────────────────────────
+-- Run if upgrading from a version without these columns:
+-- ALTER TABLE invoices ADD COLUMN IF NOT EXISTS razorpay_order_id VARCHAR(100);
+-- ALTER TABLE invoices ADD COLUMN IF NOT EXISTS razorpay_payment_id VARCHAR(100);
+-- ALTER TABLE invoices ADD COLUMN IF NOT EXISTS paid_at TIMESTAMPTZ;

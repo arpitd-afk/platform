@@ -186,3 +186,108 @@ router.get('/academies/:academyId', async (req, res) => {
 });
 
 module.exports = router;
+
+// ─── GET /api/analytics/coaches/:academyId — Coach performance report ──────────
+router.get('/coaches/:academyId', authorize('academy_admin', 'super_admin'), async (req, res) => {
+  try {
+    const { academyId } = req.params;
+    const { period = '30d' } = req.query;
+    const intervalMap = { '7d': '7 days', '30d': '30 days', '90d': '90 days', '1y': '1 year' };
+    const interval = intervalMap[period] || '30 days';
+
+    const coachStats = await query(
+      `SELECT
+        u.id,
+        u.name,
+        u.email,
+        u.avatar,
+        u.rating,
+        -- Classes taught
+        COUNT(DISTINCT c.id) FILTER (WHERE c.status = 'completed' AND c.created_at > NOW() - INTERVAL '${interval}')
+          AS classes_completed,
+        COUNT(DISTINCT c.id) FILTER (WHERE c.status = 'scheduled' AND c.scheduled_at > NOW())
+          AS classes_upcoming,
+        -- Total hours taught
+        COALESCE(SUM(
+          EXTRACT(EPOCH FROM (c.ended_at - c.started_at)) / 3600
+        ) FILTER (WHERE c.status = 'completed' AND c.started_at IS NOT NULL AND c.ended_at IS NOT NULL
+          AND c.created_at > NOW() - INTERVAL '${interval}'), 0)::NUMERIC(6,1) AS hours_taught,
+        -- Unique students taught
+        COUNT(DISTINCT b.id) FILTER (WHERE c.status = 'completed') AS batches_count,
+        -- Assignments created and graded
+        COUNT(DISTINCT a.id) FILTER (WHERE a.created_at > NOW() - INTERVAL '${interval}')
+          AS assignments_created,
+        COUNT(DISTINCT asub.id) FILTER (WHERE asub.graded_at IS NOT NULL AND asub.graded_at > NOW() - INTERVAL '${interval}')
+          AS submissions_graded,
+        -- Avg attendance rate
+        CASE WHEN COUNT(DISTINCT c.id) FILTER (WHERE c.status = 'completed') > 0
+          THEN ROUND(
+            100.0 * COUNT(DISTINCT ca.user_id) FILTER (WHERE ca.attended = true) /
+            NULLIF(COUNT(DISTINCT ca.user_id), 0)
+          )
+          ELSE NULL
+        END AS avg_attendance_pct
+       FROM users u
+       LEFT JOIN classrooms c ON c.coach_id = u.id AND c.academy_id = $1
+       LEFT JOIN batches b ON b.coach_id = u.id AND b.academy_id = $1
+       LEFT JOIN assignments a ON a.coach_id = u.id
+       LEFT JOIN assignment_submissions asub ON asub.assignment_id = a.id
+       LEFT JOIN classroom_attendance ca ON ca.classroom_id = c.id
+       WHERE u.academy_id = $1 AND u.role = 'coach' AND u.is_active = true
+       GROUP BY u.id, u.name, u.email, u.avatar, u.rating
+       ORDER BY hours_taught DESC, classes_completed DESC`,
+      [academyId]
+    );
+
+    // For each coach: student improvement (avg rating change for students in their batches)
+    const improvements = await query(
+      `SELECT
+        b.coach_id,
+        ROUND(AVG(u.rating - COALESCE(rh.prev_rating, u.rating))) AS avg_student_improvement
+       FROM batches b
+       JOIN batch_enrollments be ON be.batch_id = b.id
+       JOIN users u ON u.id = be.student_id
+       LEFT JOIN (
+         SELECT user_id, rating AS prev_rating
+         FROM rating_history
+         WHERE recorded_at < NOW() - INTERVAL '${interval}'
+         ORDER BY recorded_at DESC
+       ) rh ON rh.user_id = u.id
+       WHERE b.academy_id = $1
+       GROUP BY b.coach_id`,
+      [academyId]
+    );
+
+    const impMap = {};
+    improvements.rows.forEach((r) => { impMap[r.coach_id] = parseInt(r.avg_student_improvement) || 0; });
+
+    const coaches = coachStats.rows.map((c) => ({
+      ...c,
+      hours_taught: parseFloat(c.hours_taught) || 0,
+      classes_completed: parseInt(c.classes_completed) || 0,
+      classes_upcoming: parseInt(c.classes_upcoming) || 0,
+      assignments_created: parseInt(c.assignments_created) || 0,
+      submissions_graded: parseInt(c.submissions_graded) || 0,
+      batches_count: parseInt(c.batches_count) || 0,
+      avg_attendance_pct: c.avg_attendance_pct ? parseInt(c.avg_attendance_pct) : null,
+      avg_student_improvement: impMap[c.id] || 0,
+    }));
+
+    // Academy-level summary
+    const summary = {
+      total_coaches: coaches.length,
+      total_hours: coaches.reduce((s, c) => s + c.hours_taught, 0),
+      total_classes: coaches.reduce((s, c) => s + c.classes_completed, 0),
+      avg_attendance: coaches.filter((c) => c.avg_attendance_pct !== null).length > 0
+        ? Math.round(coaches.filter((c) => c.avg_attendance_pct !== null)
+          .reduce((s, c) => s + c.avg_attendance_pct, 0) /
+          coaches.filter((c) => c.avg_attendance_pct !== null).length)
+        : null,
+    };
+
+    res.json({ coaches, summary, period });
+  } catch (e) {
+    console.error('[coach analytics]', e);
+    res.status(500).json({ message: 'Failed to get coach analytics' });
+  }
+});
