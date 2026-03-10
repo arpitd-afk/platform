@@ -22,7 +22,7 @@ usersRouter.get('/', async (req, res) => {
     const result = await query(
       `SELECT id, name, email, role, rating, avatar, is_active, last_login_at, created_at
        FROM users WHERE ${conditions.join(' AND ')}
-       ORDER BY name ASC LIMIT $${params.length-1} OFFSET $${params.length}`,
+       ORDER BY name ASC LIMIT $${params.length - 1} OFFSET $${params.length}`,
       params
     );
     res.json({ users: result.rows });
@@ -45,17 +45,17 @@ usersRouter.get('/:id', async (req, res) => {
 usersRouter.put('/:id', async (req, res) => {
   try {
     const isSelf = req.user.id === req.params.id;
-    const isAdmin = ['super_admin','academy_admin'].includes(req.user.role);
+    const isAdmin = ['super_admin', 'academy_admin'].includes(req.user.role);
     if (!isSelf && !isAdmin) return res.status(403).json({ message: 'Not authorized' });
 
     const { name, bio, phone, is_active, batch_id } = req.body;
     const fields = [];
     const vals = [];
-    if (name !== undefined)      { vals.push(name);      fields.push(`name=$${vals.length}`); }
-    if (bio !== undefined)       { vals.push(bio);       fields.push(`bio=$${vals.length}`); }
-    if (phone !== undefined)     { vals.push(phone);     fields.push(`phone=$${vals.length}`); }
+    if (name !== undefined) { vals.push(name); fields.push(`name=$${vals.length}`); }
+    if (bio !== undefined) { vals.push(bio); fields.push(`bio=$${vals.length}`); }
+    if (phone !== undefined) { vals.push(phone); fields.push(`phone=$${vals.length}`); }
     if (is_active !== undefined && isAdmin) { vals.push(is_active); fields.push(`is_active=$${vals.length}`); }
-    if (batch_id !== undefined && isAdmin)  { vals.push(batch_id);  fields.push(`batch_id=$${vals.length}`); }
+    if (batch_id !== undefined && isAdmin) { vals.push(batch_id); fields.push(`batch_id=$${vals.length}`); }
     if (fields.length === 0) return res.json({ message: 'Nothing to update' });
     vals.push(req.params.id);
     await query(`UPDATE users SET ${fields.join(',')}, updated_at=NOW() WHERE id=$${vals.length}`, vals);
@@ -95,7 +95,7 @@ assignmentsRouter.get('/', async (req, res) => {
     const result = await query(
       `SELECT a.*, u.name as coach_name FROM assignments a
        LEFT JOIN users u ON a.coach_id=u.id
-       ${conditions.length ? 'WHERE '+conditions.join(' AND ') : ''}
+       ${conditions.length ? 'WHERE ' + conditions.join(' AND ') : ''}
        ORDER BY a.created_at DESC`,
       params
     );
@@ -105,12 +105,12 @@ assignmentsRouter.get('/', async (req, res) => {
 
 assignmentsRouter.post('/', async (req, res) => {
   try {
-    if (!['coach','academy_admin','super_admin'].includes(req.user.role)) return res.status(403).json({ message: 'Not authorized' });
+    if (!['coach', 'academy_admin', 'super_admin'].includes(req.user.role)) return res.status(403).json({ message: 'Not authorized' });
     const { title, description, type, batchId, studentId, dueDate, content } = req.body;
     const id = uuidv4();
     await query(
       'INSERT INTO assignments (id, coach_id, batch_id, student_id, title, description, type, due_date, content, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())',
-      [id, req.user.id, batchId||null, studentId||null, title, description, type||'puzzle', dueDate, JSON.stringify(content||{})]
+      [id, req.user.id, batchId || null, studentId || null, title, description, type || 'puzzle', dueDate, JSON.stringify(content || {})]
     );
     res.status(201).json({ message: 'Assignment created', id });
   } catch { res.status(500).json({ message: 'Failed to create assignment' }); }
@@ -146,7 +146,7 @@ puzzlesRouter.get('/daily', async (req, res) => {
 puzzlesRouter.get('/random', async (req, res) => {
   try {
     const { difficulty } = req.query;
-    const ratingRanges = { beginner: [800,1200], intermediate: [1200,1600], advanced: [1600,2000], expert: [2000,3000] };
+    const ratingRanges = { beginner: [800, 1200], intermediate: [1200, 1600], advanced: [1600, 2000], expert: [2000, 3000] };
     const [min, max] = ratingRanges[difficulty] || [1000, 1800];
     const result = await query(
       'SELECT * FROM puzzles WHERE rating BETWEEN $1 AND $2 ORDER BY RANDOM() LIMIT 1',
@@ -165,7 +165,7 @@ puzzlesRouter.post('/:id/submit', async (req, res) => {
     const isCorrect = JSON.stringify(moves) === JSON.stringify(expected);
     await query(
       'INSERT INTO puzzle_attempts (id, puzzle_id, user_id, is_correct, time_taken_ms, attempted_at) VALUES ($1,$2,$3,$4,$5,NOW())',
-      [uuidv4(), req.params.id, req.user.id, isCorrect, timeTakenMs||null]
+      [uuidv4(), req.params.id, req.user.id, isCorrect, timeTakenMs || null]
     );
     res.json({ isCorrect, correct: expected });
   } catch { res.status(500).json({ message: 'Submission failed' }); }
@@ -178,7 +178,7 @@ notificationsRouter.use(authenticate);
 notificationsRouter.get('/', async (req, res) => {
   try {
     const { page = 1, limit = 20 } = req.query;
-    const offset = (Number(page)-1)*Number(limit);
+    const offset = (Number(page) - 1) * Number(limit);
     const result = await query(
       'SELECT * FROM notifications WHERE user_id=$1 ORDER BY created_at DESC LIMIT $2 OFFSET $3',
       [req.user.id, limit, offset]
@@ -223,7 +223,7 @@ classroomsRouter.get('/', async (req, res) => {
        FROM classrooms c
        LEFT JOIN users u ON c.coach_id=u.id
        LEFT JOIN batches b ON c.batch_id=b.id
-       ${conditions.length ? 'WHERE '+conditions.join(' AND ') : ''}
+       ${conditions.length ? 'WHERE ' + conditions.join(' AND ') : ''}
        ORDER BY c.scheduled_at DESC LIMIT 50`,
       params
     );
@@ -233,12 +233,12 @@ classroomsRouter.get('/', async (req, res) => {
 
 classroomsRouter.post('/', async (req, res) => {
   try {
-    if (!['coach','academy_admin','super_admin'].includes(req.user.role)) return res.status(403).json({ message: 'Not authorized' });
+    if (!['coach', 'academy_admin', 'super_admin'].includes(req.user.role)) return res.status(403).json({ message: 'Not authorized' });
     const { title, batchId, scheduledAt, durationMin = 60, description } = req.body;
     const id = uuidv4();
     await query(
       'INSERT INTO classrooms (id, academy_id, coach_id, batch_id, title, description, scheduled_at, duration_min, status, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,\'scheduled\',NOW())',
-      [id, req.user.academyId, req.user.id, batchId||null, title, description||null, scheduledAt, durationMin]
+      [id, req.user.academyId, req.user.id, batchId || null, title, description || null, scheduledAt, durationMin]
     );
     res.status(201).json({ message: 'Classroom created', id });
   } catch { res.status(500).json({ message: 'Failed to create classroom' }); }
@@ -250,13 +250,20 @@ contentRouter.use(authenticate);
 contentRouter.get('/lessons', async (req, res) => {
   try {
     const { academyId, level } = req.query;
+    // Use query param OR fall back to JWT academy, supporting NULL-academy_id records via author lookup
+    const effectiveAcademyId = academyId || req.user.academyId;
     const conditions = ['is_published=true'];
     const params = [];
-    if (academyId) { params.push(academyId); conditions.push(`academy_id=$${params.length}`); }
+    if (effectiveAcademyId) {
+      params.push(effectiveAcademyId);
+      // Also catch lessons where academy_id was stored as NULL (created before bug fix)
+      // by checking if the author belongs to this academy
+      conditions.push(`(academy_id=$${params.length} OR (academy_id IS NULL AND author_id IN (SELECT id FROM users WHERE academy_id=$${params.length})))`);
+    }
     if (level) { params.push(level); conditions.push(`level=$${params.length}`); }
     const result = await query(`SELECT * FROM lessons WHERE ${conditions.join(' AND ')} ORDER BY created_at DESC LIMIT 50`, params);
     res.json({ lessons: result.rows });
-  } catch { res.status(500).json({ message: 'Failed to get lessons' }); }
+  } catch (e) { console.error(e); res.status(500).json({ message: 'Failed to get lessons' }); }
 });
 
 // ─── ANTI-CHEAT ROUTER ────────────────────────────────────────────────────────

@@ -14,11 +14,11 @@ router.get('/', async (req, res) => {
             `SELECT a.*, u.name as author_name, u.avatar as author_avatar, u.role as author_role
        FROM announcements a
        LEFT JOIN users u ON a.author_id = u.id
-       WHERE a.academy_id = $1
-         AND (a.target_role IS NULL OR a.target_role = $2)
+       WHERE (a.academy_id = $1 OR (a.academy_id IS NULL AND a.author_id = $2))
+         AND (a.target_role IS NULL OR a.target_role = $3)
        ORDER BY a.is_pinned DESC, a.created_at DESC
-       LIMIT $3`,
-            [req.user.academy_id, req.user.role, parseInt(limit)]
+       LIMIT $4`,
+            [req.user.academyId, req.user.id, req.user.role, parseInt(limit)]
         );
         res.json({ announcements: result.rows });
     } catch (e) {
@@ -36,9 +36,9 @@ router.get('/all', authorize('academy_admin', 'super_admin'), async (req, res) =
           AND (a.target_role IS NULL OR role = a.target_role)) as reach
        FROM announcements a
        LEFT JOIN users u ON a.author_id = u.id
-       WHERE a.academy_id = $1
+       WHERE (a.academy_id = $1 OR (a.academy_id IS NULL AND a.author_id = $2))
        ORDER BY a.is_pinned DESC, a.created_at DESC`,
-            [req.user.academy_id]
+            [req.user.academyId, req.user.id]
         );
         res.json({ announcements: result.rows });
     } catch (e) {
@@ -56,12 +56,12 @@ router.post('/', authorize('coach', 'academy_admin', 'super_admin'), async (req,
         await query(
             `INSERT INTO announcements (id, academy_id, author_id, title, body, target_role, is_pinned, created_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
-            [id, req.user.academy_id, req.user.id, title, body, targetRole || null, isPinned]
+            [id, req.user.academyId, req.user.id, title, body, targetRole || null, isPinned]
         );
 
         // Push real-time notification via socket
         if (req.io) {
-            req.io.to(`academy:${req.user.academy_id}`).emit('announcement:new', {
+            req.io.to(`academy:${req.user.academyId}`).emit('announcement:new', {
                 id, title, body, targetRole, isPinned,
                 author_name: req.user.name,
                 created_at: new Date().toISOString(),
@@ -75,7 +75,7 @@ router.post('/', authorize('coach', 'academy_admin', 'super_admin'), async (req,
                 `SELECT email, name FROM users
          WHERE academy_id=$1 AND is_active=true
            AND (${targetRole ? 'role=$2' : '$2::text IS NULL'})`,
-                [req.user.academy_id, targetRole]
+                [req.user.academyId, targetRole]
             );
             for (const u of audience.rows) {
                 sendAnnouncementEmail({ to: u.email, name: u.name, title, body, authorName: req.user.name }).catch(() => { });
@@ -100,7 +100,7 @@ router.put('/:id', authorize('coach', 'academy_admin', 'super_admin'), async (re
          target_role = $3,
          is_pinned   = COALESCE($4, is_pinned)
        WHERE id=$5 AND academy_id=$6`,
-            [title, body, targetRole ?? null, isPinned, req.params.id, req.user.academy_id]
+            [title, body, targetRole ?? null, isPinned, req.params.id, req.user.academyId]
         );
         res.json({ message: 'Updated' });
     } catch (e) {
@@ -113,7 +113,7 @@ router.delete('/:id', authorize('academy_admin', 'super_admin'), async (req, res
     try {
         await query(
             'DELETE FROM announcements WHERE id=$1 AND academy_id=$2',
-            [req.params.id, req.user.academy_id]
+            [req.params.id, req.user.academyId]
         );
         res.json({ message: 'Deleted' });
     } catch (e) {
@@ -127,7 +127,7 @@ router.put('/:id/pin', authorize('academy_admin', 'super_admin'), async (req, re
         const { pinned } = req.body;
         await query(
             'UPDATE announcements SET is_pinned=$1 WHERE id=$2 AND academy_id=$3',
-            [pinned, req.params.id, req.user.academy_id]
+            [pinned, req.params.id, req.user.academyId]
         );
         res.json({ message: pinned ? 'Pinned' : 'Unpinned' });
     } catch (e) {

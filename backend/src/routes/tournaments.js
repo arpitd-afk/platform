@@ -125,7 +125,7 @@ router.get('/', async (req, res) => {
     if (status) { params.push(status); conditions.push(`t.status = $${params.length}`); }
     if (academyId) { params.push(academyId); conditions.push(`t.academy_id = $${params.length}`); }
     else if (req.user.role !== 'super_admin') {
-      params.push(req.user.academy_id);
+      params.push(req.user.academyId);
       conditions.push(`(t.academy_id = $${params.length} OR t.is_public = true)`);
     }
 
@@ -198,7 +198,7 @@ router.post('/', authorize('academy_admin', 'coach', 'super_admin'), async (req,
       `INSERT INTO tournaments (id, academy_id, organizer_id, name, description, format,
         time_control, rounds, max_players, is_public, starts_at, prize_pool, entry_fee, status, created_at)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'registration',NOW())`,
-      [id, req.user.academy_id, req.user.id, name, description, format,
+      [id, req.user.academyId, req.user.id, name, description, format,
         timeControl, rounds, maxPlayers, isPublic, startsAt, prizePool, entryFee]
     );
     res.status(201).json({ message: 'Tournament created', id });

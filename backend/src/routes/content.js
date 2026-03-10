@@ -17,8 +17,9 @@ const router = contentRouter;
 router.get('/lessons/mine', authorize('coach', 'academy_admin', 'super_admin'), async (req, res) => {
   try {
     const { level, search } = req.query;
-    const conditions = ['l.author_id = $1'];
-    const params = [req.user.id];
+    // Match by author OR by academy (catches NULL academy_id records too)
+    const conditions = ['(l.author_id = $1 OR (l.academy_id = $2 AND (l.academy_id IS NOT NULL)))'];
+    const params = [req.user.id, req.user.academyId];
 
     if (level) { params.push(level); conditions.push(`l.level = $${params.length}`); }
     if (search) { params.push(`%${search}%`); conditions.push(`(l.title ILIKE $${params.length} OR l.description ILIKE $${params.length})`); }
@@ -85,7 +86,7 @@ router.post('/lessons', authorize('coach', 'academy_admin', 'super_admin'), asyn
         (id, academy_id, author_id, title, description, pgn, video_url, thumbnail_url,
          level, tags, content, is_published, created_at, updated_at)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW(),NOW())`,
-      [id, req.user.academy_id, req.user.id, title, description, pgn,
+      [id, req.user.academyId, req.user.id, title, description, pgn,
         videoUrl, thumbnailUrl, level, tags, JSON.stringify(content), isPublished]
     );
     res.status(201).json({ message: 'Lesson created', id });
@@ -188,7 +189,7 @@ router.get('/courses', async (req, res) => {
     const params = [];
     const conditions = [];
     if (req.user.role !== 'super_admin') {
-      params.push(req.user.academy_id);
+      params.push(req.user.academyId);
       conditions.push(`c.academy_id = $${params.length}`);
     }
     if (req.user.role === 'student') {
@@ -218,7 +219,7 @@ router.post('/courses', authorize('coach', 'academy_admin', 'super_admin'), asyn
     await query(
       `INSERT INTO courses (id, academy_id, title, description, level, is_published, created_at)
        VALUES ($1,$2,$3,$4,$5,$6,NOW())`,
-      [id, req.user.academy_id, title, description, level, isPublished]
+      [id, req.user.academyId, title, description, level, isPublished]
     );
     res.status(201).json({ message: 'Course created', id });
   } catch (e) {

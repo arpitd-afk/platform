@@ -1,10 +1,8 @@
 {
   "/(auth)/login/page": "app/(auth)/login/page.js",
+  "/(dashboard)/parent/children/page": "app/(dashboard)/parent/children/page.js",
+  "/(dashboard)/parent/page": "app/(dashboard)/parent/page.js",
+  "/(dashboard)/parent/progress/page": "app/(dashboard)/parent/progress/page.js",
   "/(dashboard)/academy/page": "app/(dashboard)/academy/page.js",
-  "/(dashboard)/coach/schedule/page": "app/(dashboard)/coach/schedule/page.js",
-  "/(dashboard)/coach/page": "app/(dashboard)/coach/page.js",
-  "/(dashboard)/coach/library/page": "app/(dashboard)/coach/library/page.js",
-  "/(dashboard)/coach/classroom/page": "app/(dashboard)/coach/classroom/page.js",
-  "/(dashboard)/notifications/page": "app/(dashboard)/notifications/page.js",
-  "/(dashboard)/coach/students/page": "app/(dashboard)/coach/students/page.js"
+  "/(dashboard)/academy/announcements/page": "app/(dashboard)/academy/announcements/page.js"
 }

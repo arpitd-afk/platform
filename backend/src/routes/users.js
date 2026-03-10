@@ -34,15 +34,17 @@ router.get('/my-children', async (req, res) => {
   try {
     if (req.user.role !== 'parent') return res.status(403).json({ message: 'Not authorized' });
     const result = await query(
-      `SELECT u.id, u.name, u.email, u.rating, u.avatar,
+      `SELECT DISTINCT ON (u.id)
+        u.id, u.name, u.email, u.rating, u.avatar,
         b.name as batch_name, c.name as coach_name, a.name as academy_name
        FROM parent_student ps
        JOIN users u ON ps.student_id = u.id
-       LEFT JOIN batch_enrollments be ON be.student_id = u.id
+       LEFT JOIN batch_enrollments be ON be.student_id = u.id AND be.status = 'active'
        LEFT JOIN batches b ON be.batch_id = b.id
        LEFT JOIN users c ON b.coach_id = c.id
        LEFT JOIN academies a ON u.academy_id = a.id
-       WHERE ps.parent_id = $1`,
+       WHERE ps.parent_id = $1
+       ORDER BY u.id, b.name`,
       [req.user.id]
     );
     res.json({ children: result.rows });

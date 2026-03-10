@@ -12,6 +12,7 @@ export * from "./useAcademies";
 export * from "./useBilling";
 export * from "./useMessages";
 export * from "./useExtended";
-export * from "./useAnnouncements";
 
 export { useSocket, getSocket, disconnectSocket } from "./useSocket";
+
+export * from "./useAnnouncements";

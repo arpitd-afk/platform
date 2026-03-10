@@ -508,3 +508,94 @@ CREATE INDEX IF NOT EXISTS idx_tournament_matches_round ON tournament_matches(to
 -- ALTER TABLE invoices ADD COLUMN IF NOT EXISTS razorpay_order_id VARCHAR(100);
 -- ALTER TABLE invoices ADD COLUMN IF NOT EXISTS razorpay_payment_id VARCHAR(100);
 -- ALTER TABLE invoices ADD COLUMN IF NOT EXISTS paid_at TIMESTAMPTZ;
+
+-- ─── CUSTOM PUZZLES (coach-created) ──────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS custom_puzzles (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  academy_id    UUID REFERENCES academies(id) ON DELETE CASCADE,
+  created_by    UUID REFERENCES users(id) ON DELETE SET NULL,
+  title         VARCHAR(300) NOT NULL,
+  description   TEXT,
+  fen           TEXT NOT NULL,
+  solution_moves TEXT NOT NULL,        -- space-separated UCI e.g. "e2e4 d7d5"
+  solution_pgn  TEXT,                  -- human-readable SAN for display
+  difficulty    VARCHAR(50) DEFAULT 'intermediate',
+  themes        TEXT[] DEFAULT '{}',
+  hint          TEXT,
+  is_published  BOOLEAN DEFAULT false,
+  times_solved  INT DEFAULT 0,
+  created_at    TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_custom_puzzles_academy ON custom_puzzles(academy_id);
+
+CREATE TABLE IF NOT EXISTS custom_puzzle_attempts (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  puzzle_id     UUID REFERENCES custom_puzzles(id) ON DELETE CASCADE,
+  user_id       UUID REFERENCES users(id) ON DELETE CASCADE,
+  is_correct    BOOLEAN NOT NULL DEFAULT false,
+  moves_played  TEXT,
+  time_taken_ms INT,
+  attempted_at  TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(puzzle_id, user_id)           -- one attempt per student per puzzle (can upsert)
+);
+
+-- ─── MCQ QUESTIONS ────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS mcq_questions (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  academy_id    UUID REFERENCES academies(id) ON DELETE CASCADE,
+  created_by    UUID REFERENCES users(id) ON DELETE SET NULL,
+  question      TEXT NOT NULL,
+  explanation   TEXT,                  -- shown after submission
+  fen           TEXT,                  -- optional chess position image
+  difficulty    VARCHAR(50) DEFAULT 'intermediate',
+  topics        TEXT[] DEFAULT '{}',
+  is_published  BOOLEAN DEFAULT false,
+  allow_multiple BOOLEAN DEFAULT false, -- true = select all that apply
+  points        INT DEFAULT 1,
+  created_at    TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS mcq_options (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  question_id   UUID REFERENCES mcq_questions(id) ON DELETE CASCADE,
+  option_text   TEXT NOT NULL,
+  is_correct    BOOLEAN DEFAULT false,
+  order_index   INT DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS mcq_attempts (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  question_id   UUID REFERENCES mcq_questions(id) ON DELETE CASCADE,
+  user_id       UUID REFERENCES users(id) ON DELETE CASCADE,
+  selected_option_ids UUID[],
+  is_correct    BOOLEAN NOT NULL DEFAULT false,
+  points_earned INT DEFAULT 0,
+  time_taken_ms INT,
+  attempted_at  TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(question_id, user_id)
+);
+
+-- ─── PUZZLE LEADERBOARD VIEW ──────────────────────────────────────────────────
+CREATE OR REPLACE VIEW puzzle_leaderboard AS
+SELECT
+  u.id AS user_id,
+  u.name,
+  u.avatar,
+  u.academy_id,
+  u.rating,
+  -- Lichess puzzles solved
+  COUNT(DISTINCT pa.id) FILTER (WHERE pa.is_correct) AS lichess_solved,
+  -- Custom puzzles solved
+  COUNT(DISTINCT cpa.id) FILTER (WHERE cpa.is_correct) AS custom_solved,
+  -- MCQ points
+  COALESCE(SUM(ma.points_earned), 0) AS mcq_points,
+  -- Total score
+  COUNT(DISTINCT pa.id) FILTER (WHERE pa.is_correct)
+    + COUNT(DISTINCT cpa.id) FILTER (WHERE cpa.is_correct)
+    + COALESCE(SUM(ma.points_earned), 0) AS total_score
+FROM users u
+LEFT JOIN puzzle_attempts pa ON pa.user_id = u.id
+LEFT JOIN custom_puzzle_attempts cpa ON cpa.user_id = u.id
+LEFT JOIN mcq_attempts ma ON ma.user_id = u.id
+WHERE u.role = 'student' AND u.is_active = true
+GROUP BY u.id, u.name, u.avatar, u.academy_id, u.rating;

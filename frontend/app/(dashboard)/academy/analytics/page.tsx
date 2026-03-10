@@ -366,11 +366,11 @@ export default function AcademyAnalyticsPage() {
   const [tab, setTab] = useState<"overview" | "coaches">("overview");
 
   const { data: analytics, isLoading: aLoading } = useAcademyAnalytics(
-    user?.academy_id,
+    user?.academyId,
     period,
   );
   const { data: coachData, isLoading: cLoading } = useCoachPerformance(
-    user?.academy_id,
+    user?.academyId,
     period,
   );
   const { data: students = [] } = useUsers({ role: "student" });

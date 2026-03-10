@@ -78,14 +78,14 @@ const PLAN_ICONS: Record<string, any> = {
 export default function BillingPage() {
   const { user } = useAuth();
   const razorpayLoaded = useRazorpayScript();
-  const { data: academy, isLoading: aLoading } = useAcademy(user?.academy_id);
+  const { data: academy, isLoading: aLoading } = useAcademy(user?.academyId);
   const { data: plans = [], isLoading: pLoading } = usePlans();
   const {
     data: invoices = [],
     isLoading: iLoading,
     refetch: refetchInvoices,
-  } = useInvoices(user?.academy_id);
-  const { data: subscription } = useSubscription(user?.academy_id);
+  } = useInvoices(user?.academyId);
+  const { data: subscription } = useSubscription(user?.academyId);
 
   const [processingPlan, setProcessingPlan] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"plans" | "invoices">("plans");
@@ -106,7 +106,7 @@ export default function BillingPage() {
 
   // ─── Initiate Razorpay payment ────────────────────────────────
   const handleUpgrade = async (planName: string, planPrice: number) => {
-    if (!user?.academy_id) return;
+    if (!user?.academyId) return;
     setProcessingPlan(planName);
     try {
       // 1. Create order on server

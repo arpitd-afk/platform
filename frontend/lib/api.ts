@@ -121,6 +121,23 @@ export const puzzlesAPI = {
   daily: () => api.get("/puzzles/daily"),
   random: (p?: any) => api.get("/puzzles/random", { params: p }),
   submit: (id: string, d: any) => api.post(`/puzzles/${id}/submit`, d),
+  myStats: () => api.get("/puzzles/my-stats"),
+  leaderboard: (p?: any) => api.get("/puzzles/leaderboard", { params: p }),
+  myRank: () => api.get("/puzzles/my-rank"),
+  // Custom puzzles
+  customList: (p?: any) => api.get("/puzzles/custom", { params: p }),
+  customGet: (id: string) => api.get(`/puzzles/custom/${id}`),
+  customCreate: (d: any) => api.post("/puzzles/custom", d),
+  customUpdate: (id: string, d: any) => api.put(`/puzzles/custom/${id}`, d),
+  customDelete: (id: string) => api.delete(`/puzzles/custom/${id}`),
+  customSubmit: (id: string, d: any) =>
+    api.post(`/puzzles/custom/${id}/submit`, d),
+  // MCQ
+  mcqList: (p?: any) => api.get("/puzzles/mcq", { params: p }),
+  mcqCreate: (d: any) => api.post("/puzzles/mcq", d),
+  mcqUpdate: (id: string, d: any) => api.put(`/puzzles/mcq/${id}`, d),
+  mcqDelete: (id: string) => api.delete(`/puzzles/mcq/${id}`),
+  mcqSubmit: (id: string, d: any) => api.post(`/puzzles/mcq/${id}/submit`, d),
 };
 
 // ─── Assignments ───────────────────────────────────────────

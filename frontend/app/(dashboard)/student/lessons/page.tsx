@@ -292,7 +292,7 @@ function LessonModal({
 export default function LessonsPage() {
   const { user } = useAuth();
   const { data: lessons = [], isLoading } = useLessons({
-    academyId: user?.academy_id,
+    academyId: user?.academyId,
   });
   const { data: progress = [] } = useMyLessonProgress();
   const complete = useCompleteLesson();
