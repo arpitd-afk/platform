@@ -32,7 +32,7 @@ function initSocketHandlers(io) {
     // Join user's personal room for notifications
     if (userId) {
       socket.join(`user:${userId}`);
-      session.setUserOnline(userId, socket.id).catch(() => {});
+      session.setUserOnline(userId, socket.id).catch(() => { });
     }
 
     // ─── GAME EVENTS ──────────────────────────────────────────────────────────
@@ -134,8 +134,8 @@ function initSocketHandlers(io) {
           gameOver = {
             winner,
             reason: chess.isCheckmate() ? 'checkmate' :
-                    chess.isStalemate() ? 'stalemate' :
-                    chess.isDraw() ? 'draw' : 'unknown',
+              chess.isStalemate() ? 'stalemate' :
+                chess.isDraw() ? 'draw' : 'unknown',
           };
           gameState.result = gameOver;
         }
@@ -281,11 +281,44 @@ function initSocketHandlers(io) {
 
     // ─── DISCONNECT ───────────────────────────────────────────────────────────
 
+
+    // ── Direct message typing indicator ───────────────────────────────────────
+    socket.on('dm:typing', ({ toUserId, isTyping }) => {
+      socket.to(`user:${toUserId}`).emit('dm:typing', { fromUserId: userId, isTyping });
+    });
+
+
+    // ── Batch group chat rooms ────────────────────────────────────────────────
+    socket.on('batch:join', async ({ batchId }) => {
+      if (!batchId) return;
+      // Verify access
+      try {
+        const { query } = require('../config/database');
+        const access = await query(
+          `SELECT 1 FROM batches b
+           LEFT JOIN batch_enrollments be ON be.batch_id = b.id AND be.student_id = $1
+           WHERE b.id = $2 AND (b.coach_id = $1 OR be.student_id = $1)
+           LIMIT 1`,
+          [userId, batchId]
+        );
+        if (access.rows.length || ['academy_admin', 'super_admin'].includes(socket.user?.role)) {
+          socket.join(`batch:${batchId}`);
+        }
+      } catch (e) { logger.error('batch:join error', e.message); }
+    });
+
+    socket.on('batch:leave', ({ batchId }) => {
+      if (batchId) socket.leave(`batch:${batchId}`);
+    });
+
+    // ── Online presence broadcast ──────────────────────────────────────────────
+    socket.broadcast.emit('user:online', { userId });
+
     socket.on('disconnect', async (reason) => {
       logger.info(`Socket disconnected: ${socket.id} (user: ${userId}, reason: ${reason})`);
 
       if (userId) {
-        await session.setUserOffline(userId).catch(() => {});
+        await session.setUserOffline(userId).catch(() => { });
       }
 
       // Handle game disconnect

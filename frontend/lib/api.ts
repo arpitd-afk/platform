@@ -1,7 +1,7 @@
 import axios, { AxiosRequestConfig } from "axios";
 import Cookies from "js-cookie";
 
-const api = axios.create({
+export const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api",
   timeout: 20000,
 });
@@ -211,6 +211,11 @@ export const messagesAPI = {
   getMessages: (userId: string) => api.get(`/messages/${userId}`),
   send: (receiverId: string, content: string) =>
     api.post("/messages", { receiverId, content }),
+  batchMessages: (batchId: string) => api.get(`/messages/batch/${batchId}`),
+  sendBatch: (batchId: string, content: string) =>
+    api.post(`/messages/batch/${batchId}`, { content }),
+  deleteBatch: (batchId: string, msgId: string) =>
+    api.delete(`/messages/batch/${batchId}/${msgId}`),
   contacts: () => api.get("/messages/contacts/list"),
 };
 

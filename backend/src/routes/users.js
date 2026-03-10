@@ -18,7 +18,7 @@ router.get('/:id/rating-history', async (req, res) => {
       [req.params.id, limit]
     );
     res.json({ history: result.rows });
-  } catch { res.status(500).json({ message: 'Failed' }); }
+  } catch (e) { console.error("[users]", e.message); res.status(500).json({ message: 'Failed', _route: 'users' }); }
 });
 
 // PUT /api/users/:id/status
@@ -30,7 +30,7 @@ router.put('/:id/status', async (req, res) => {
     const { active } = req.body;
     await query('UPDATE users SET is_active=$1, updated_at=NOW() WHERE id=$2', [active, req.params.id]);
     res.json({ message: 'Status updated' });
-  } catch { res.status(500).json({ message: 'Failed' }); }
+  } catch (e) { console.error("[users]", e.message); res.status(500).json({ message: 'Failed', _route: 'users' }); }
 });
 
 
@@ -40,15 +40,21 @@ router.get('/:id/attendance', async (req, res) => {
     const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!uuidRe.test(req.params.id)) return res.status(404).json({ message: 'Not found' });
     const result = await query(
-      `SELECT ca.*, cl.title as class_title, cl.scheduled_at
-       FROM classroom_attendance ca
-       JOIN classrooms cl ON ca.classroom_id = cl.id
-       WHERE ca.student_id = $1
-       ORDER BY cl.scheduled_at DESC LIMIT 50`,
+      `SELECT cl.id as classroom_id, cl.title as class_title, cl.scheduled_at, cl.status as class_status,
+        cl.duration_min, b.name as batch_name,
+        CASE WHEN ca.student_id IS NOT NULL THEN 'present' ELSE 'absent' END as status,
+        ca.joined_at, ca.duration_min as actual_duration_min
+       FROM classrooms cl
+       LEFT JOIN batches b ON b.id = cl.batch_id
+       LEFT JOIN batch_enrollments be ON be.batch_id = cl.batch_id AND be.student_id = $1 AND be.is_active = true
+       LEFT JOIN classroom_attendance ca ON ca.classroom_id = cl.id AND ca.student_id = $1
+       WHERE (cl.status = 'completed' OR cl.status = 'live')
+         AND (be.student_id = $1 OR ca.student_id = $1)
+       ORDER BY cl.scheduled_at DESC LIMIT 60`,
       [req.params.id]
     );
     res.json({ attendance: result.rows });
-  } catch { res.status(500).json({ message: 'Failed' }); }
+  } catch (e) { console.error("[users]", e.message); res.status(500).json({ message: 'Failed', _route: 'users' }); }
 });
 
 // GET /api/users/:id/games
@@ -69,7 +75,7 @@ router.get('/:id/games', async (req, res) => {
       [req.params.id, limit]
     );
     res.json({ games: result.rows });
-  } catch { res.status(500).json({ message: 'Failed' }); }
+  } catch (e) { console.error("[users]", e.message); res.status(500).json({ message: 'Failed', _route: 'users' }); }
 });
 
 module.exports = router;

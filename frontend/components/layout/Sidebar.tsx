@@ -21,6 +21,7 @@ import {
   ClipboardList,
   Calendar,
   MessageSquare,
+  CheckSquare,
   Swords,
   Award,
   TrendingUp,
@@ -62,6 +63,7 @@ const NAV: Record<string, NavGroup[]> = {
           href: "/student/assignments",
           icon: ClipboardList,
         },
+        { label: "Attendance", href: "/student/attendance", icon: Calendar },
       ],
     },
     {
@@ -101,6 +103,7 @@ const NAV: Record<string, NavGroup[]> = {
         { label: "PGN Library", href: "/coach/library", icon: BookOpen },
         { label: "Puzzles & MCQ", href: "/coach/puzzles", icon: PuzzleIcon },
         { label: "Schedule", href: "/coach/schedule", icon: Calendar },
+        { label: "Attendance", href: "/coach/attendance", icon: CheckSquare },
       ],
     },
     {

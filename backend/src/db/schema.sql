@@ -599,3 +599,14 @@ LEFT JOIN custom_puzzle_attempts cpa ON cpa.user_id = u.id
 LEFT JOIN mcq_attempts ma ON ma.user_id = u.id
 WHERE u.role = 'student' AND u.is_active = true
 GROUP BY u.id, u.name, u.avatar, u.academy_id, u.rating;
+
+
+-- ─── BATCH GROUP MESSAGES ─────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS batch_messages (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  batch_id    UUID REFERENCES batches(id) ON DELETE CASCADE,
+  sender_id   UUID REFERENCES users(id) ON DELETE CASCADE,
+  content     TEXT NOT NULL,
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_batch_messages_batch ON batch_messages(batch_id, created_at DESC);
