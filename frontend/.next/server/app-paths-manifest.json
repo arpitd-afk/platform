@@ -1,8 +1,12 @@
 {
+  "/_not-found/page": "app/_not-found/page.js",
   "/(auth)/login/page": "app/(auth)/login/page.js",
-  "/(dashboard)/parent/children/page": "app/(dashboard)/parent/children/page.js",
-  "/(dashboard)/parent/page": "app/(dashboard)/parent/page.js",
-  "/(dashboard)/parent/progress/page": "app/(dashboard)/parent/progress/page.js",
-  "/(dashboard)/academy/page": "app/(dashboard)/academy/page.js",
-  "/(dashboard)/academy/announcements/page": "app/(dashboard)/academy/announcements/page.js"
+  "/(dashboard)/academy/tournaments/page": "app/(dashboard)/academy/tournaments/page.js",
+  "/(dashboard)/tournament/[id]/page": "app/(dashboard)/tournament/[id]/page.js",
+  "/(dashboard)/academy/billing/page": "app/(dashboard)/academy/billing/page.js",
+  "/(dashboard)/academy/settings/page": "app/(dashboard)/academy/settings/page.js",
+  "/(dashboard)/super-admin/page": "app/(dashboard)/super-admin/page.js",
+  "/(dashboard)/super-admin/billing/page": "app/(dashboard)/super-admin/billing/page.js",
+  "/(dashboard)/student/page": "app/(dashboard)/student/page.js",
+  "/(dashboard)/student/tournaments/page": "app/(dashboard)/student/tournaments/page.js"
 }

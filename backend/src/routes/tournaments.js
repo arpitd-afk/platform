@@ -472,9 +472,9 @@ router.post('/:id/next-round', authorize('academy_admin', 'coach', 'super_admin'
       query(
         `SELECT ts.player_id, ts.score, ts.wins, ts.draws, ts.losses, u.rating,
           (SELECT COUNT(*) FROM tournament_matches tm2
-           WHERE tm2.tournament_id=$1 AND tm2.white_id=ts.player_id) as whites_count,
+           WHERE tm2.tournament_id=$1 AND tm2.white_player_id=ts.player_id) as whites_count,
           (SELECT COUNT(*) FROM tournament_matches tm3
-           WHERE tm3.tournament_id=$1 AND (tm3.white_id=ts.player_id OR tm3.black_id=ts.player_id) AND tm3.is_bye=true) as had_bye_count
+           WHERE tm3.tournament_id=$1 AND (tm3.white_player_id=ts.player_id OR tm3.black_player_id=ts.player_id) AND tm3.is_bye=true) as had_bye_count
          FROM tournament_standings ts
          JOIN users u ON ts.player_id = u.id
          WHERE ts.tournament_id=$1

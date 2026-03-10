@@ -26,10 +26,82 @@ usersRouter.get('/', async (req, res) => {
       params
     );
     res.json({ users: result.rows });
-  } catch { res.status(500).json({ message: 'Failed to get users' }); }
+  } catch (e) { console.error("[_combined]", e.message); res.status(500).json({ message: 'Failed to get users' }); }
+});
+
+
+// ─── Named routes (must be BEFORE /:id wildcard) ─────────────────────────────
+
+usersRouter.get('/my-children', async (req, res) => {
+  try {
+    if (req.user.role !== 'parent') return res.status(403).json({ message: 'Not authorized' });
+    const result = await query(
+      `SELECT DISTINCT ON (u.id)
+        u.id, u.name, u.email, u.rating, u.avatar,
+        b.name as batch_name, c.name as coach_name, a.name as academy_name
+       FROM parent_student ps
+       JOIN users u ON ps.student_id = u.id
+       LEFT JOIN batch_enrollments be ON be.student_id = u.id AND be.is_active = true
+       LEFT JOIN batches b ON be.batch_id = b.id
+       LEFT JOIN users c ON b.coach_id = c.id
+       LEFT JOIN academies a ON u.academy_id = a.id
+       WHERE ps.parent_id = $1
+       ORDER BY u.id, b.name`,
+      [req.user.id]
+    );
+    res.json({ children: result.rows });
+  } catch (e) { console.error(e); res.status(500).json({ message: 'Failed' }); }
+});
+
+usersRouter.get('/leaderboard/:academyId', async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT u.id, u.name, u.avatar, u.rating,
+        COUNT(g.id) FILTER (WHERE (g.result->>'winner') IS NOT NULL AND (g.white_player_id=u.id OR g.black_player_id=u.id)) as wins,
+        COUNT(g.id) as games
+       FROM users u
+       LEFT JOIN games g ON g.white_player_id=u.id OR g.black_player_id=u.id
+       WHERE u.academy_id=$1 AND u.role='student' AND u.is_active=true
+       GROUP BY u.id, u.name, u.avatar, u.rating
+       ORDER BY u.rating DESC LIMIT 50`,
+      [req.params.academyId]
+    );
+    res.json({ leaderboard: result.rows });
+  } catch (e) { console.error("[_combined]", e.message); res.status(500).json({ message: 'Failed' }); }
+});
+
+usersRouter.get('/children/:parentId/progress', async (req, res) => {
+  try {
+    if (req.user.id !== req.params.parentId && req.user.role !== 'super_admin' && req.user.role !== 'academy_admin') {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+    const result = await query(
+      `SELECT u.id, u.name, u.rating, u.avatar,
+        COUNT(DISTINCT g.id) as games_played,
+        COUNT(DISTINCT g.id) FILTER (WHERE (g.white_player_id=u.id AND g.result->>'winner'='white') OR (g.black_player_id=u.id AND g.result->>'winner'='black')) as wins,
+        COUNT(DISTINCT pa.id) FILTER (WHERE pa.is_correct) as puzzles_solved,
+        COUNT(DISTINCT asub.id) as assignments_done,
+        COUNT(DISTINCT a.id) as assignments_total
+       FROM parent_student ps
+       JOIN users u ON ps.student_id = u.id
+       LEFT JOIN games g ON g.white_player_id=u.id OR g.black_player_id=u.id
+       LEFT JOIN puzzle_attempts pa ON pa.user_id=u.id
+       LEFT JOIN assignment_submissions asub ON asub.student_id=u.id AND asub.submitted_at IS NOT NULL
+       LEFT JOIN assignments a ON a.id=asub.assignment_id
+       WHERE ps.parent_id=$1
+       GROUP BY u.id, u.name, u.rating, u.avatar`,
+      [req.params.parentId]
+    );
+    res.json({ progress: result.rows });
+  } catch (e) { console.error(e); res.status(500).json({ message: 'Failed' }); }
 });
 
 usersRouter.get('/:id', async (req, res) => {
+  // Guard: reject anything that isn't a valid UUID so Postgres doesn't throw
+  const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!uuidRe.test(req.params.id)) {
+    return res.status(404).json({ message: 'User not found' });
+  }
   try {
     const result = await query(
       `SELECT u.id, u.name, u.email, u.role, u.rating, u.avatar, u.bio, u.created_at,
@@ -39,7 +111,7 @@ usersRouter.get('/:id', async (req, res) => {
     );
     if (!result.rows.length) return res.status(404).json({ message: 'User not found' });
     res.json({ user: result.rows[0] });
-  } catch { res.status(500).json({ message: 'Failed to get user' }); }
+  } catch (e) { console.error('[GET /users/:id]', e.message); res.status(500).json({ message: 'Failed to get user' }); }
 });
 
 usersRouter.put('/:id', async (req, res) => {
@@ -78,7 +150,7 @@ usersRouter.get('/:id/stats', async (req, res) => {
       games: games.rows[0],
       puzzles: puzzles.rows[0],
     });
-  } catch { res.status(500).json({ message: 'Failed to get stats' }); }
+  } catch (e) { console.error("[_combined]", e.message); res.status(500).json({ message: 'Failed to get stats' }); }
 });
 
 // ─── ASSIGNMENTS ROUTER ───────────────────────────────────────────────────────
@@ -100,7 +172,7 @@ assignmentsRouter.get('/', async (req, res) => {
       params
     );
     res.json({ assignments: result.rows });
-  } catch { res.status(500).json({ message: 'Failed to get assignments' }); }
+  } catch (e) { console.error("[_combined]", e.message); res.status(500).json({ message: 'Failed to get assignments' }); }
 });
 
 assignmentsRouter.post('/', async (req, res) => {
@@ -113,7 +185,7 @@ assignmentsRouter.post('/', async (req, res) => {
       [id, req.user.id, batchId || null, studentId || null, title, description, type || 'puzzle', dueDate, JSON.stringify(content || {})]
     );
     res.status(201).json({ message: 'Assignment created', id });
-  } catch { res.status(500).json({ message: 'Failed to create assignment' }); }
+  } catch (e) { console.error("[_combined]", e.message); res.status(500).json({ message: 'Failed to create assignment' }); }
 });
 
 assignmentsRouter.post('/:id/submit', async (req, res) => {
@@ -140,7 +212,7 @@ puzzlesRouter.get('/daily', async (req, res) => {
   try {
     const result = await query('SELECT * FROM puzzles ORDER BY nb_plays ASC, rating DESC LIMIT 1');
     res.json({ puzzle: result.rows[0] || null });
-  } catch { res.status(500).json({ message: 'Failed to get puzzle' }); }
+  } catch (e) { console.error("[_combined]", e.message); res.status(500).json({ message: 'Failed to get puzzle' }); }
 });
 
 puzzlesRouter.get('/random', async (req, res) => {
@@ -153,7 +225,7 @@ puzzlesRouter.get('/random', async (req, res) => {
       [min, max]
     );
     res.json({ puzzle: result.rows[0] || null });
-  } catch { res.status(500).json({ message: 'Failed to get puzzle' }); }
+  } catch (e) { console.error("[_combined]", e.message); res.status(500).json({ message: 'Failed to get puzzle' }); }
 });
 
 puzzlesRouter.post('/:id/submit', async (req, res) => {
@@ -184,28 +256,28 @@ notificationsRouter.get('/', async (req, res) => {
       [req.user.id, limit, offset]
     );
     res.json({ notifications: result.rows });
-  } catch { res.status(500).json({ message: 'Failed to get notifications' }); }
+  } catch (e) { console.error("[_combined]", e.message); res.status(500).json({ message: 'Failed to get notifications' }); }
 });
 
 notificationsRouter.get('/unread-count', async (req, res) => {
   try {
     const result = await query('SELECT COUNT(*) FROM notifications WHERE user_id=$1 AND is_read=false', [req.user.id]);
     res.json({ count: parseInt(result.rows[0].count) });
-  } catch { res.status(500).json({ message: 'Failed' }); }
+  } catch (e) { console.error("[_combined]", e.message); res.status(500).json({ message: 'Failed' }); }
 });
 
 notificationsRouter.put('/:id/read', async (req, res) => {
   try {
     await query('UPDATE notifications SET is_read=true WHERE id=$1 AND user_id=$2', [req.params.id, req.user.id]);
     res.json({ message: 'Marked as read' });
-  } catch { res.status(500).json({ message: 'Failed' }); }
+  } catch (e) { console.error("[_combined]", e.message); res.status(500).json({ message: 'Failed' }); }
 });
 
 notificationsRouter.put('/read-all', async (req, res) => {
   try {
     await query('UPDATE notifications SET is_read=true WHERE user_id=$1', [req.user.id]);
     res.json({ message: 'All marked as read' });
-  } catch { res.status(500).json({ message: 'Failed' }); }
+  } catch (e) { console.error("[_combined]", e.message); res.status(500).json({ message: 'Failed' }); }
 });
 
 // ─── CLASSROOMS ROUTER ────────────────────────────────────────────────────────
@@ -228,7 +300,7 @@ classroomsRouter.get('/', async (req, res) => {
       params
     );
     res.json({ classrooms: result.rows });
-  } catch { res.status(500).json({ message: 'Failed to get classrooms' }); }
+  } catch (e) { console.error("[_combined]", e.message); res.status(500).json({ message: 'Failed to get classrooms' }); }
 });
 
 classroomsRouter.post('/', async (req, res) => {
@@ -241,7 +313,7 @@ classroomsRouter.post('/', async (req, res) => {
       [id, req.user.academyId, req.user.id, batchId || null, title, description || null, scheduledAt, durationMin]
     );
     res.status(201).json({ message: 'Classroom created', id });
-  } catch { res.status(500).json({ message: 'Failed to create classroom' }); }
+  } catch (e) { console.error("[_combined]", e.message); res.status(500).json({ message: 'Failed to create classroom' }); }
 });
 
 // ─── CONTENT ROUTER ───────────────────────────────────────────────────────────
@@ -273,7 +345,7 @@ anticheatRouter.get('/reports', async (req, res) => {
   try {
     const result = await query('SELECT cr.*, u.name as reported_name FROM cheat_reports cr LEFT JOIN users u ON cr.reported_user=u.id ORDER BY cr.created_at DESC LIMIT 50');
     res.json({ reports: result.rows });
-  } catch { res.status(500).json({ message: 'Failed to get reports' }); }
+  } catch (e) { console.error("[_combined]", e.message); res.status(500).json({ message: 'Failed to get reports' }); }
 });
 
 // ─── BILLING ROUTER ───────────────────────────────────────────────────────────
@@ -283,13 +355,13 @@ billingRouter.get('/plans', async (req, res) => {
   try {
     const result = await query('SELECT * FROM subscription_plans WHERE is_active=true ORDER BY price_monthly ASC');
     res.json({ plans: result.rows });
-  } catch { res.status(500).json({ message: 'Failed to get plans' }); }
+  } catch (e) { console.error("[_combined]", e.message); res.status(500).json({ message: 'Failed to get plans' }); }
 });
 billingRouter.get('/invoices/:academyId', async (req, res) => {
   try {
     const result = await query('SELECT * FROM invoices WHERE academy_id=$1 ORDER BY created_at DESC', [req.params.academyId]);
     res.json({ invoices: result.rows });
-  } catch { res.status(500).json({ message: 'Failed to get invoices' }); }
+  } catch (e) { console.error("[_combined]", e.message); res.status(500).json({ message: 'Failed to get invoices' }); }
 });
 
 // ─── EMAIL SERVICE STUB ───────────────────────────────────────────────────────

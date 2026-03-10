@@ -10,6 +10,8 @@ const router = usersRouter;
 // GET /api/users/:id/rating-history
 router.get('/:id/rating-history', async (req, res) => {
   try {
+    const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRe.test(req.params.id)) return res.status(404).json({ message: 'Not found' });
     const { limit = 30 } = req.query;
     const result = await query(
       'SELECT rating, recorded_at as date FROM rating_history WHERE user_id=$1 ORDER BY recorded_at ASC LIMIT $2',
@@ -22,6 +24,8 @@ router.get('/:id/rating-history', async (req, res) => {
 // PUT /api/users/:id/status
 router.put('/:id/status', async (req, res) => {
   try {
+    const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRe.test(req.params.id)) return res.status(404).json({ message: 'Not found' });
     if (!['super_admin', 'academy_admin'].includes(req.user.role)) return res.status(403).json({ message: 'Not authorized' });
     const { active } = req.body;
     await query('UPDATE users SET is_active=$1, updated_at=NOW() WHERE id=$2', [active, req.params.id]);
@@ -29,31 +33,12 @@ router.put('/:id/status', async (req, res) => {
   } catch { res.status(500).json({ message: 'Failed' }); }
 });
 
-// GET /api/users/my-children  (parent)
-router.get('/my-children', async (req, res) => {
-  try {
-    if (req.user.role !== 'parent') return res.status(403).json({ message: 'Not authorized' });
-    const result = await query(
-      `SELECT DISTINCT ON (u.id)
-        u.id, u.name, u.email, u.rating, u.avatar,
-        b.name as batch_name, c.name as coach_name, a.name as academy_name
-       FROM parent_student ps
-       JOIN users u ON ps.student_id = u.id
-       LEFT JOIN batch_enrollments be ON be.student_id = u.id AND be.status = 'active'
-       LEFT JOIN batches b ON be.batch_id = b.id
-       LEFT JOIN users c ON b.coach_id = c.id
-       LEFT JOIN academies a ON u.academy_id = a.id
-       WHERE ps.parent_id = $1
-       ORDER BY u.id, b.name`,
-      [req.user.id]
-    );
-    res.json({ children: result.rows });
-  } catch { res.status(500).json({ message: 'Failed' }); }
-});
 
 // GET /api/users/:id/attendance
 router.get('/:id/attendance', async (req, res) => {
   try {
+    const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRe.test(req.params.id)) return res.status(404).json({ message: 'Not found' });
     const result = await query(
       `SELECT ca.*, cl.title as class_title, cl.scheduled_at
        FROM classroom_attendance ca
@@ -69,6 +54,8 @@ router.get('/:id/attendance', async (req, res) => {
 // GET /api/users/:id/games
 router.get('/:id/games', async (req, res) => {
   try {
+    const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRe.test(req.params.id)) return res.status(404).json({ message: 'Not found' });
     const { limit = 20 } = req.query;
     const result = await query(
       `SELECT g.*,
@@ -87,57 +74,7 @@ router.get('/:id/games', async (req, res) => {
 
 module.exports = router;
 
-// GET /api/users/leaderboard/:academyId
-router.get('/leaderboard/:academyId', async (req, res) => {
-  try {
-    const result = await query(
-      `SELECT u.id, u.name, u.rating, u.avatar,
-        COUNT(DISTINCT g.id) FILTER (WHERE g.status='completed') as games_played,
-        COUNT(DISTINCT g.id) FILTER (WHERE g.status='completed' AND (
-          (g.result->>'winner'='white' AND g.white_player_id=u.id) OR
-          (g.result->>'winner'='black' AND g.black_player_id=u.id)
-        )) as wins,
-        COALESCE(rh.streak, 0) as streak
-       FROM users u
-       LEFT JOIN games g ON (g.white_player_id=u.id OR g.black_player_id=u.id)
-       LEFT JOIN LATERAL (
-         SELECT COUNT(*) FILTER (WHERE is_correct) as streak
-         FROM puzzle_attempts WHERE user_id=u.id AND attempted_at > NOW() - INTERVAL '7 days'
-       ) rh ON true
-       WHERE u.academy_id=$1 AND u.role='student' AND u.is_active=true
-       GROUP BY u.id, u.name, u.rating, u.avatar, rh.streak
-       ORDER BY u.rating DESC LIMIT 50`,
-      [req.params.academyId]
-    );
-    res.json({ leaderboard: result.rows });
-  } catch (e) { console.error(e); res.status(500).json({ message: 'Failed to get leaderboard' }); }
-});
 
-// GET /api/users/children/:parentId/progress  
-router.get('/children/:parentId/progress', async (req, res) => {
-  try {
-    if (req.user.id !== req.params.parentId && req.user.role !== 'super_admin') {
-      return res.status(403).json({ message: 'Not authorized' });
-    }
-    const result = await query(
-      `SELECT u.id, u.name, u.rating,
-        COUNT(DISTINCT g.id) FILTER (WHERE g.status='completed') as games_played,
-        COUNT(DISTINCT pa.puzzle_id) FILTER (WHERE pa.is_correct) as puzzles_correct,
-        COUNT(DISTINCT a.id) FILTER (WHERE sub.id IS NOT NULL) as assignments_done,
-        COUNT(DISTINCT a.id) as assignments_total
-       FROM parent_student ps
-       JOIN users u ON ps.student_id=u.id
-       LEFT JOIN games g ON (g.white_player_id=u.id OR g.black_player_id=u.id)
-       LEFT JOIN puzzle_attempts pa ON pa.user_id=u.id
-       LEFT JOIN assignments a ON a.student_id=u.id
-       LEFT JOIN assignment_submissions sub ON sub.assignment_id=a.id AND sub.student_id=u.id
-       WHERE ps.parent_id=$1
-       GROUP BY u.id, u.name, u.rating`,
-      [req.params.parentId]
-    );
-    res.json({ progress: result.rows });
-  } catch (e) { res.status(500).json({ message: 'Failed' }); }
-});
 
 // POST /api/users - Create a new user (academy admin or super admin)
 router.post('/', authorize('academy_admin', 'super_admin', 'coach'), async (req, res) => {
@@ -190,6 +127,8 @@ router.post('/', authorize('academy_admin', 'super_admin', 'coach'), async (req,
 // POST /api/users/:id/link-parent - Link a parent to a student
 router.post('/:id/link-parent', authorize('academy_admin', 'super_admin', 'coach'), async (req, res) => {
   try {
+    const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRe.test(req.params.id)) return res.status(404).json({ message: 'Not found' });
     const { parentEmail } = req.body;
     if (!parentEmail) return res.status(400).json({ message: 'Parent email required' });
     const parent = await query(`SELECT id FROM users WHERE email=$1 AND role='parent'`, [parentEmail]);
@@ -221,6 +160,8 @@ router.post('/:id/link-parent', authorize('academy_admin', 'super_admin', 'coach
 // POST /api/users/:id/avatar - Upload avatar (base64 stored in DB)
 router.post('/:id/avatar', async (req, res) => {
   try {
+    const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRe.test(req.params.id)) return res.status(404).json({ message: 'Not found' });
     const { id } = req.params
     if (req.user.id !== id && !['super_admin', 'academy_admin'].includes(req.user.role)) {
       return res.status(403).json({ message: 'Not authorized' })

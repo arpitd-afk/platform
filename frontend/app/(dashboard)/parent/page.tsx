@@ -1,6 +1,6 @@
 "use client";
 import { useAuth } from "@/lib/auth-context";
-import { useUsers } from "@/lib/hooks";
+import { useMyChildren } from "@/lib/hooks";
 import { PageLoading } from "@/components/shared/States";
 import Avatar from "@/components/shared/Avatar";
 import Link from "next/link";
@@ -16,10 +16,7 @@ import {
 
 export default function ParentDashboard() {
   const { user } = useAuth();
-  const { data: children = [], isLoading } = useUsers({
-    role: "student",
-    parentId: user?.id,
-  });
+  const { data: children = [], isLoading } = useMyChildren();
 
   if (isLoading) return <PageLoading />;
 
@@ -65,6 +62,7 @@ export default function ParentDashboard() {
                       style={{ color: "var(--text-muted)" }}
                     >
                       {child.batch_name || "No batch assigned"}
+                      {child.coach_name ? ` · ${child.coach_name}` : ""}
                     </div>
                   </div>
                 </div>
@@ -95,13 +93,13 @@ export default function ParentDashboard() {
                       className="font-bold text-sm"
                       style={{ color: "#1D4ED8" }}
                     >
-                      {child.games_played || 0}
+                      {child.academy_name || "—"}
                     </div>
                     <div
                       className="text-[10px]"
                       style={{ color: "var(--text-muted)" }}
                     >
-                      Games
+                      Academy
                     </div>
                   </div>
                 </div>
