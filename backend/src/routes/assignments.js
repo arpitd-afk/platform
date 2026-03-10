@@ -152,6 +152,22 @@ router.put('/:id/submissions/:subId/grade', authorize('coach', 'academy_admin', 
       );
     }
 
+    // Send grade email (fire-and-forget)
+    if (subRes.rows.length) {
+      try {
+        const { sendGradeNotificationEmail } = require('../services/emailService');
+        const { student_id, title, passing_score } = subRes.rows[0];
+        const stuEmail = await query('SELECT email, name FROM users WHERE id=$1', [student_id]);
+        if (stuEmail.rows[0]) {
+          sendGradeNotificationEmail({
+            to: stuEmail.rows[0].email, name: stuEmail.rows[0].name,
+            assignmentTitle: title, score: grade, maxScore: 100,
+            passed: grade >= (passing_score || 70),
+            feedback, coachName: req.user.name,
+          }).catch(() => { });
+        }
+      } catch (_) { }
+    }
     res.json({ message: 'Submission graded successfully' });
   } catch (e) {
     console.error(e);

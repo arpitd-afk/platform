@@ -22,7 +22,7 @@ router.get('/:id/rating-history', async (req, res) => {
 // PUT /api/users/:id/status
 router.put('/:id/status', async (req, res) => {
   try {
-    if (!['super_admin','academy_admin'].includes(req.user.role)) return res.status(403).json({ message: 'Not authorized' });
+    if (!['super_admin', 'academy_admin'].includes(req.user.role)) return res.status(403).json({ message: 'Not authorized' });
     const { active } = req.body;
     await query('UPDATE users SET is_active=$1, updated_at=NOW() WHERE id=$2', [active, req.params.id]);
     res.json({ message: 'Status updated' });
@@ -108,7 +108,7 @@ router.get('/leaderboard/:academyId', async (req, res) => {
       [req.params.academyId]
     );
     res.json({ leaderboard: result.rows });
-  } catch(e) { console.error(e); res.status(500).json({ message: 'Failed to get leaderboard' }); }
+  } catch (e) { console.error(e); res.status(500).json({ message: 'Failed to get leaderboard' }); }
 });
 
 // GET /api/users/children/:parentId/progress  
@@ -134,7 +134,7 @@ router.get('/children/:parentId/progress', async (req, res) => {
       [req.params.parentId]
     );
     res.json({ progress: result.rows });
-  } catch(e) { res.status(500).json({ message: 'Failed' }); }
+  } catch (e) { res.status(500).json({ message: 'Failed' }); }
 });
 
 // POST /api/users - Create a new user (academy admin or super admin)
@@ -159,7 +159,7 @@ router.post('/', authorize('academy_admin', 'super_admin', 'coach'), async (req,
 
     const exists = await query('SELECT id FROM users WHERE email=$1', [email]);
     if (exists.rows.length > 0) return res.status(409).json({ message: 'Email already exists' });
-    
+
     const hash = await bcrypt.hash(password, 10);
     const userId = uuidv4();
     const academyId = req.user.role === 'super_admin' ? req.body.academyId : req.user.academy_id;
@@ -172,6 +172,12 @@ router.post('/', authorize('academy_admin', 'super_admin', 'coach'), async (req,
       await query('INSERT INTO batch_students (batch_id, student_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [batchId, userId]);
     }
     const created = await query('SELECT id, name, email, role, rating FROM users WHERE id=$1', [userId]);
+    // Send welcome email (fire-and-forget)
+    try {
+      const { sendWelcomeEmail } = require('../services/emailService');
+      const acad = await require('../config/database').query('SELECT name FROM academies WHERE id=$1', [academy_id || req.user.academy_id]);
+      sendWelcomeEmail({ to: email, name, role, academyName: acad.rows[0]?.name || 'Chess Academy' }).catch(() => { });
+    } catch (_) { }
     res.status(201).json({ message: 'User created successfully', userId, user: created.rows[0] });
   } catch (e) {
     console.error(e);

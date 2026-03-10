@@ -175,6 +175,17 @@ export const anticheatAPI = {
   review: (id: string, d: any) => api.put(`/anticheat/reports/${id}`, d),
 };
 
+// ─── Announcements ──────────────────────────────────────────────
+export const announcementsAPI = {
+  list: (params?: any) => api.get("/announcements", { params }),
+  listAll: () => api.get("/announcements/all"),
+  create: (data: any) => api.post("/announcements", data),
+  update: (id: string, data: any) => api.put(`/announcements/${id}`, data),
+  remove: (id: string) => api.delete(`/announcements/${id}`),
+  pin: (id: string, pinned: boolean) =>
+    api.put(`/announcements/${id}/pin`, { pinned }),
+};
+
 export default api;
 
 // ─── Messages ──────────────────────────────────────────────

@@ -13,6 +13,7 @@ import {
   BarChart3,
   CreditCard,
   Settings,
+  Megaphone,
   ChevronLeft,
   ChevronRight,
   Puzzle,
@@ -129,6 +130,11 @@ const NAV: Record<string, NavGroup[]> = {
       group: "Operations",
       items: [
         { label: "Classes", href: "/academy/classes", icon: BookOpen },
+        {
+          label: "Announcements",
+          href: "/academy/announcements",
+          icon: Megaphone,
+        },
         { label: "Tournaments", href: "/academy/tournaments", icon: Trophy },
       ],
     },

@@ -19,6 +19,7 @@ interface User {
   academy_id?: string;
   academyName?: string;
   avatar?: string;
+  academyId?: string;
 }
 interface AuthContextType {
   user: User | null;
