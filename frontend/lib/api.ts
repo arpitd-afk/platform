@@ -267,3 +267,21 @@ export const billingExtAPI = {
 export const activityLogsAPI = {
   list: (p?: any) => api.get("/activity-logs", { params: p }),
 };
+
+export const studentInvoicesAPI = {
+  list: (params?: any) => api.get("/student-invoices", { params }),
+  get: (id: string) => api.get(`/student-invoices/${id}`),
+  create: (data: any) => api.post("/student-invoices", data),
+  update: (id: string, data: any) => api.patch(`/student-invoices/${id}`, data),
+  delete: (id: string) => api.delete(`/student-invoices/${id}`),
+  pdfUrl: (id: string) => `${api.defaults.baseURL}/student-invoices/${id}/pdf`,
+  summary: (academyId: string) =>
+    api.get(`/student-invoices/summary/${academyId}`),
+};
+
+export const studentReportsAPI = {
+  data: (studentId: string, periodDays = 90) =>
+    api.get(`/student-reports/${studentId}/data`, { params: { periodDays } }),
+  pdfUrl: (studentId: string, periodDays = 90) =>
+    `${api.defaults.baseURL}/student-reports/${studentId}/pdf?periodDays=${periodDays}`,
+};

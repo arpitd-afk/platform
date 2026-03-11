@@ -67,6 +67,10 @@ const messagesRoutes = require('./routes/messages');
 app.use('/api/messages', messagesRoutes);
 const announcementRoutes = require('./routes/announcements');
 app.use('/api/announcements', announcementRoutes);
+const studentInvoiceRoutes = require('./routes/studentInvoices');
+app.use('/api/student-invoices', studentInvoiceRoutes);
+const studentReportRoutes = require('./routes/studentReports');
+app.use('/api/student-reports', studentReportRoutes);
 
 app.get('/health', (req, res) => res.json({ status: 'ok', uptime: process.uptime(), timestamp: new Date() }));
 app.use((req, res) => res.status(404).json({ message: 'Route not found' }));

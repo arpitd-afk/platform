@@ -610,3 +610,46 @@ CREATE TABLE IF NOT EXISTS batch_messages (
   created_at  TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_batch_messages_batch ON batch_messages(batch_id, created_at DESC);
+
+-- ─── STUDENT FEE INVOICES ────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS student_invoices (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  invoice_number VARCHAR(50) UNIQUE NOT NULL,
+  academy_id     UUID REFERENCES academies(id) ON DELETE CASCADE,
+  student_id     UUID REFERENCES users(id) ON DELETE CASCADE,
+  batch_id       UUID REFERENCES batches(id) ON DELETE SET NULL,
+  status         VARCHAR(20) DEFAULT 'draft'
+                   CHECK (status IN ('draft','sent','paid','overdue','cancelled')),
+  currency       VARCHAR(10) DEFAULT 'INR',
+  subtotal       DECIMAL(10,2) NOT NULL DEFAULT 0,
+  tax_rate       DECIMAL(5,2) DEFAULT 18.00,
+  tax_amount     DECIMAL(10,2) NOT NULL DEFAULT 0,
+  total          DECIMAL(10,2) NOT NULL DEFAULT 0,
+  amount_paid    DECIMAL(10,2) DEFAULT 0,
+  line_items     JSONB DEFAULT '[]',
+  notes          TEXT,
+  due_date       DATE,
+  period_from    DATE,
+  period_to      DATE,
+  paid_at        TIMESTAMPTZ,
+  payment_method VARCHAR(50),
+  payment_ref    VARCHAR(200),
+  issued_at      TIMESTAMPTZ DEFAULT NOW(),
+  created_at     TIMESTAMPTZ DEFAULT NOW(),
+  updated_at     TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_student_invoices_academy  ON student_invoices(academy_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_student_invoices_student  ON student_invoices(student_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_student_invoices_status   ON student_invoices(status);
+
+-- Sequence for invoice numbers
+CREATE SEQUENCE IF NOT EXISTS invoice_number_seq START 1001;
+
+-- Helper function to generate invoice number
+CREATE OR REPLACE FUNCTION next_invoice_number(academy_prefix TEXT DEFAULT 'INV')
+RETURNS TEXT AS $$
+  SELECT academy_prefix || '-' || LPAD(nextval('invoice_number_seq')::TEXT, 5, '0');
+$$ LANGUAGE SQL;
+
+SELECT 'student_invoices table created ✓' AS status;

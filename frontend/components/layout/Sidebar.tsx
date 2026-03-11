@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/auth-context";
 import { useUnreadCount } from "@/lib/hooks";
 import Avatar from "@/components/shared/Avatar";
 import {
+  Brain,
   LayoutDashboard,
   Users,
   BookOpen,
@@ -38,6 +39,8 @@ import {
   Activity,
   Menu,
   X,
+  Receipt,
+  FileText,
 } from "lucide-react";
 
 interface NavItem {
@@ -71,6 +74,8 @@ const NAV: Record<string, NavGroup[]> = {
       items: [
         { label: "Play Chess", href: "/game", icon: Swords },
         { label: "Game History", href: "/student/games", icon: Trophy },
+        { label: "My Invoices", href: "/student/invoices", icon: Receipt },
+        { label: "Analysis", href: "/student/games", icon: Brain },
         { label: "Tournaments", href: "/student/tournaments", icon: Award },
       ],
     },
@@ -110,6 +115,7 @@ const NAV: Record<string, NavGroup[]> = {
       group: "Insights",
       items: [
         { label: "Analysis", href: "/coach/analysis", icon: BarChart3 },
+        { label: "Reports", href: "/coach/reports", icon: FileText },
         { label: "Messages", href: "/coach/messages", icon: MessageSquare },
         { label: "Settings", href: "/coach/settings", icon: Settings },
       ],
@@ -147,6 +153,7 @@ const NAV: Record<string, NavGroup[]> = {
       group: "Account",
       items: [
         { label: "Billing", href: "/academy/billing", icon: CreditCard },
+        { label: "Fee Invoices", href: "/academy/invoices", icon: Receipt },
         { label: "Settings", href: "/academy/settings", icon: Settings },
       ],
     },
