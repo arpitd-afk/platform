@@ -1,4 +1,6 @@
 "use client";
+import { useState as _useState2 } from "react";
+import GameAnalysis from "@/components/shared/GameAnalysis";
 import { useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useGames } from "@/lib/hooks";
@@ -15,6 +17,7 @@ import {
   X,
   Copy,
   CheckCheck,
+  Brain,
 } from "lucide-react";
 import Link from "next/link";
 import toast from "react-hot-toast";
@@ -520,18 +523,19 @@ export default function StudentGamesPage() {
                           <Download size={11} />
                           PGN
                         </button>
-                        {g.id && (
+                        {g.id && g.pgn && (
                           <Link
                             href={`/game/${g.id}`}
-                            className="flex items-center gap-1 text-xs px-2 py-1.5 rounded-lg border transition-all"
+                            className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg font-medium border transition-all"
                             style={{
                               background: "var(--bg-subtle)",
-                              color: "var(--text-muted)",
+                              color: "#F472B6",
                               borderColor: "var(--border)",
                             }}
-                            title="Review"
+                            title="Analyse with Stockfish"
                           >
-                            <Eye size={11} />
+                            <Brain size={11} />
+                            Analyse
                           </Link>
                         )}
                       </div>
