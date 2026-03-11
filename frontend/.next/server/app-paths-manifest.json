@@ -1,10 +1,12 @@
 {
   "/_not-found/page": "app/_not-found/page.js",
   "/(auth)/login/page": "app/(auth)/login/page.js",
-  "/classroom/[id]/page": "app/classroom/[id]/page.js",
-  "/(dashboard)/academy/invoices/page": "app/(dashboard)/academy/invoices/page.js",
+  "/(auth)/forgot-password/page": "app/(auth)/forgot-password/page.js",
+  "/(auth)/register/page": "app/(auth)/register/page.js",
+  "/(dashboard)/parent/homework/page": "app/(dashboard)/parent/homework/page.js",
+  "/(dashboard)/parent/payments/page": "app/(dashboard)/parent/payments/page.js",
+  "/(dashboard)/parent/messages/page": "app/(dashboard)/parent/messages/page.js",
+  "/(dashboard)/parent/settings/page": "app/(dashboard)/parent/settings/page.js",
   "/(dashboard)/super-admin/page": "app/(dashboard)/super-admin/page.js",
-  "/(dashboard)/super-admin/academies/page": "app/(dashboard)/super-admin/academies/page.js",
-  "/(dashboard)/notifications/page": "app/(dashboard)/notifications/page.js",
-  "/(dashboard)/academy/page": "app/(dashboard)/academy/page.js"
+  "/(dashboard)/super-admin/academies/page": "app/(dashboard)/super-admin/academies/page.js"
 }

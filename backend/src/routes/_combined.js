@@ -11,18 +11,25 @@ usersRouter.get('/', async (req, res) => {
   try {
     const { academyId, role, page = 1, limit = 50 } = req.query;
     const offset = (Number(page) - 1) * Number(limit);
-    const conditions = ['is_active = true'];
+    const conditions = ['u.is_active = true'];
     const params = [];
 
     const targetAcademy = academyId || req.user.academyId;
-    if (targetAcademy) { params.push(targetAcademy); conditions.push(`academy_id = $${params.length}`); }
-    if (role) { params.push(role); conditions.push(`role = $${params.length}`); }
+    if (targetAcademy) { params.push(targetAcademy); conditions.push(`u.academy_id = $${params.length}`); }
+    if (role) { params.push(role); conditions.push(`u.role = $${params.length}`); }
 
     params.push(limit, offset);
     const result = await query(
-      `SELECT id, name, email, role, rating, avatar, is_active, last_login_at, created_at
-       FROM users WHERE ${conditions.join(' AND ')}
-       ORDER BY name ASC LIMIT $${params.length - 1} OFFSET $${params.length}`,
+      `SELECT u.id, u.name, u.email, u.role, u.rating, u.avatar, u.phone,
+              u.is_active, u.last_login_at, u.created_at, u.assigned_coach_id,
+              c.name as assigned_coach_name, c.avatar as assigned_coach_avatar,
+              be.batch_id, b.name as batch_name
+       FROM users u
+       LEFT JOIN users c ON c.id = u.assigned_coach_id
+       LEFT JOIN batch_enrollments be ON be.student_id = u.id AND be.is_active = true
+       LEFT JOIN batches b ON b.id = be.batch_id
+       WHERE ${conditions.join(' AND ')}
+       ORDER BY u.name ASC LIMIT $${params.length - 1} OFFSET $${params.length}`,
       params
     );
     res.json({ users: result.rows });
@@ -50,7 +57,7 @@ usersRouter.get('/my-children', async (req, res) => {
       [req.user.id]
     );
     res.json({ children: result.rows });
-  } catch (e) { console.error(e); res.status(500).json({ message: 'Failed' }); }
+  } catch (e) { console.error(e); res.status(500).json({ message: 'Failed', _route: '_combined' }); }
 });
 
 usersRouter.get('/leaderboard/:academyId', async (req, res) => {
@@ -67,7 +74,7 @@ usersRouter.get('/leaderboard/:academyId', async (req, res) => {
       [req.params.academyId]
     );
     res.json({ leaderboard: result.rows });
-  } catch (e) { console.error("[_combined]", e.message); res.status(500).json({ message: 'Failed' }); }
+  } catch (e) { console.error("[_combined]", e.message); res.status(500).json({ message: 'Failed', _route: '_combined' }); }
 });
 
 usersRouter.get('/children/:parentId/progress', async (req, res) => {
@@ -78,7 +85,7 @@ usersRouter.get('/children/:parentId/progress', async (req, res) => {
     const result = await query(
       `SELECT u.id, u.name, u.rating, u.avatar,
         COUNT(DISTINCT g.id) as games_played,
-        COUNT(DISTINCT g.id) FILTER (WHERE (g.white_player_id=u.id AND g.result->>'winner'='white') OR (g.black_player_id=u.id AND g.result->>'winner'='black')) as wins,
+        COUNT(DISTINCT g.id) FILTER (WHERE (g.white_player_id=u.id AND (g.result->>'winner')='white') OR (g.black_player_id=u.id AND (g.result->>'winner')='black')) as wins,
         COUNT(DISTINCT pa.id) FILTER (WHERE pa.is_correct) as puzzles_solved,
         COUNT(DISTINCT asub.id) as assignments_done,
         COUNT(DISTINCT a.id) as assignments_total
@@ -93,7 +100,7 @@ usersRouter.get('/children/:parentId/progress', async (req, res) => {
       [req.params.parentId]
     );
     res.json({ progress: result.rows });
-  } catch (e) { console.error(e); res.status(500).json({ message: 'Failed' }); }
+  } catch (e) { console.error(e); res.status(500).json({ message: 'Failed', _route: '_combined' }); }
 });
 
 usersRouter.get('/:id', async (req, res) => {
@@ -123,17 +130,32 @@ usersRouter.put('/:id', async (req, res) => {
     const { name, bio, phone, is_active, batch_id } = req.body;
     const fields = [];
     const vals = [];
-    if (name !== undefined) { vals.push(name); fields.push(`name=$${vals.length}`); }
-    if (bio !== undefined) { vals.push(bio); fields.push(`bio=$${vals.length}`); }
-    if (phone !== undefined) { vals.push(phone); fields.push(`phone=$${vals.length}`); }
-    if (is_active !== undefined && isAdmin) { vals.push(is_active); fields.push(`is_active=$${vals.length}`); }
-    if (batch_id !== undefined && isAdmin) { vals.push(batch_id); fields.push(`batch_id=$${vals.length}`); }
-    if (fields.length === 0) return res.json({ message: 'Nothing to update' });
-    vals.push(req.params.id);
-    await query(`UPDATE users SET ${fields.join(',')}, updated_at=NOW() WHERE id=$${vals.length}`, vals);
+    if (name !== undefined) { vals.push(name); fields.push('name=$' + vals.length); }
+    if (bio !== undefined) { vals.push(bio); fields.push('bio=$' + vals.length); }
+    if (phone !== undefined) { vals.push(phone); fields.push('phone=$' + vals.length); }
+    if (is_active !== undefined && isAdmin) { vals.push(is_active); fields.push('is_active=$' + vals.length); }
+    // batch_id lives on batch_enrollments, not users — handle separately
+    if (fields.length === 0 && batch_id === undefined) return res.json({ message: 'Nothing to update' });
+
+    if (fields.length > 0) {
+      vals.push(req.params.id);
+      await query('UPDATE users SET ' + fields.join(',') + ' WHERE id=$' + vals.length, vals);
+    }
+
+    // If batch_id supplied, update enrollment (batch_enrollments uses composite PK, no id column)
+    if (batch_id !== undefined && isAdmin) {
+      await query('UPDATE batch_enrollments SET is_active=false WHERE student_id=$1', [req.params.id]);
+      if (batch_id) {
+        await query(
+          'INSERT INTO batch_enrollments (batch_id, student_id, enrolled_at, is_active) VALUES ($1,$2,NOW(),true) ON CONFLICT (batch_id, student_id) DO UPDATE SET is_active=true',
+          [batch_id, req.params.id]
+        );
+      }
+    }
+
     const updated = await query('SELECT id, name, email, role, rating, avatar, is_active FROM users WHERE id=$1', [req.params.id]);
     res.json({ message: 'Updated', user: updated.rows[0] });
-  } catch (e) { console.error(e); res.status(500).json({ message: 'Update failed' }); }
+  } catch (e) { console.error('[users PUT] FULL ERROR:', e.message, e.stack); res.status(500).json({ message: 'Update failed', detail: e.message }); }
 });
 
 usersRouter.get('/:id/stats', async (req, res) => {
@@ -263,21 +285,21 @@ notificationsRouter.get('/unread-count', async (req, res) => {
   try {
     const result = await query('SELECT COUNT(*) FROM notifications WHERE user_id=$1 AND is_read=false', [req.user.id]);
     res.json({ count: parseInt(result.rows[0].count) });
-  } catch (e) { console.error("[_combined]", e.message); res.status(500).json({ message: 'Failed' }); }
+  } catch (e) { console.error("[_combined]", e.message); res.status(500).json({ message: 'Failed', _route: '_combined' }); }
 });
 
 notificationsRouter.put('/:id/read', async (req, res) => {
   try {
     await query('UPDATE notifications SET is_read=true WHERE id=$1 AND user_id=$2', [req.params.id, req.user.id]);
     res.json({ message: 'Marked as read' });
-  } catch (e) { console.error("[_combined]", e.message); res.status(500).json({ message: 'Failed' }); }
+  } catch (e) { console.error("[_combined]", e.message); res.status(500).json({ message: 'Failed', _route: '_combined' }); }
 });
 
 notificationsRouter.put('/read-all', async (req, res) => {
   try {
     await query('UPDATE notifications SET is_read=true WHERE user_id=$1', [req.user.id]);
     res.json({ message: 'All marked as read' });
-  } catch (e) { console.error("[_combined]", e.message); res.status(500).json({ message: 'Failed' }); }
+  } catch (e) { console.error("[_combined]", e.message); res.status(500).json({ message: 'Failed', _route: '_combined' }); }
 });
 
 // ─── CLASSROOMS ROUTER ────────────────────────────────────────────────────────
@@ -363,6 +385,64 @@ billingRouter.get('/invoices/:academyId', async (req, res) => {
     res.json({ invoices: result.rows });
   } catch (e) { console.error("[_combined]", e.message); res.status(500).json({ message: 'Failed to get invoices' }); }
 });
+
+// PUT /api/users/:id/assign-coach — assign or remove a coach for a student
+usersRouter.put('/:id/assign-coach', async (req, res) => {
+  const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!uuidRe.test(req.params.id)) return res.status(400).json({ message: 'Invalid student id' });
+  try {
+    if (!['academy_admin', 'super_admin'].includes(req.user.role))
+      return res.status(403).json({ message: 'Not authorized' });
+
+    const { coachId } = req.body; // null to unassign
+
+    if (coachId) {
+      if (!uuidRe.test(coachId)) return res.status(400).json({ message: 'Invalid coach id' });
+      // Verify coach exists in same academy
+      const coach = await query(
+        "SELECT id FROM users WHERE id=$1 AND role='coach' AND academy_id=$2",
+        [coachId, req.user.academyId]
+      );
+      if (!coach.rows.length) return res.status(400).json({ message: 'Coach not found in this academy' });
+    }
+
+    await query(
+      'UPDATE users SET assigned_coach_id=$1, updated_at=NOW() WHERE id=$2 AND academy_id=$3',
+      [coachId || null, req.params.id, req.user.academyId]
+    );
+
+    // If assigning, also enroll student in coach's default batch if they're not in any batch
+    if (coachId) {
+      const inBatch = await query(
+        'SELECT 1 FROM batch_enrollments be JOIN batches b ON b.id=be.batch_id WHERE be.student_id=$1 AND b.coach_id=$2 AND be.is_active=true LIMIT 1',
+        [req.params.id, coachId]
+      );
+      // Just update assignment — batch enrollment stays separate
+    }
+
+    res.json({ message: coachId ? 'Coach assigned' : 'Coach unassigned' });
+  } catch (e) { console.error('[assign-coach]', e.message); res.status(500).json({ message: 'Failed' }); }
+});
+
+// GET /api/users/coaches/with-students — coaches + their assigned students count
+usersRouter.get('/coaches/with-students', async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT c.id, c.name, c.email, c.avatar, c.rating,
+         COUNT(s.id) as student_count,
+         json_agg(json_build_object('id', s.id, 'name', s.name, 'rating', s.rating, 'avatar', s.avatar)
+           ORDER BY s.name) FILTER (WHERE s.id IS NOT NULL) as students
+       FROM users c
+       LEFT JOIN users s ON s.assigned_coach_id = c.id AND s.is_active = true
+       WHERE c.role = 'coach' AND c.academy_id = $1 AND c.is_active = true
+       GROUP BY c.id
+       ORDER BY c.name`,
+      [req.user.academyId]
+    );
+    res.json({ coaches: result.rows });
+  } catch (e) { console.error('[coaches/with-students]', e.message); res.status(500).json({ message: 'Failed' }); }
+});
+
 
 // ─── EMAIL SERVICE STUB ───────────────────────────────────────────────────────
 async function sendEmail({ to, subject, template, data }) {

@@ -652,4 +652,19 @@ RETURNS TEXT AS $$
   SELECT academy_prefix || '-' || LPAD(nextval('invoice_number_seq')::TEXT, 5, '0');
 $$ LANGUAGE SQL;
 
-SELECT 'student_invoices table created ✓' AS status;
+
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS assigned_coach_id UUID REFERENCES users(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_users_assigned_coach ON users(assigned_coach_id);
+
+-- Change schedule from JSONB to TEXT so plain strings like "Mon/Wed 5-6pm" work
+ALTER TABLE batches ALTER COLUMN schedule TYPE TEXT USING (
+  CASE 
+    WHEN schedule IS NULL THEN NULL
+    WHEN jsonb_typeof(schedule) = 'array' AND jsonb_array_length(schedule) = 0 THEN ''
+    ELSE schedule::TEXT
+  END
+);
+
+ALTER TABLE batches ALTER COLUMN schedule SET DEFAULT '';
+

@@ -107,20 +107,19 @@ router.post('/', authorize('academy_admin', 'super_admin', 'coach'), async (req,
 
     const hash = await bcrypt.hash(password, 10);
     const userId = uuidv4();
-    const academyId = req.user.role === 'super_admin' ? req.body.academyId : req.user.academy_id;
+    const academyId = req.user.role === 'super_admin' ? req.body.academyId : req.user.academyId;
     await query(
-      `INSERT INTO users (id, name, email, password_hash, role, academy_id, phone, is_active, created_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,true,NOW())`,
+      'INSERT INTO users (id, name, email, password_hash, role, academy_id, phone, is_active, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,true,NOW())',
       [userId, name, email, hash, targetRole, academyId, phone || null]
     );
     if (batchId) {
-      await query('INSERT INTO batch_students (batch_id, student_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [batchId, userId]);
+      await query('INSERT INTO batch_enrollments (id, batch_id, student_id, enrolled_at, is_active) VALUES ($1,$2,$3,NOW(),true) ON CONFLICT DO NOTHING', [uuidv4(), batchId, userId]);
     }
     const created = await query('SELECT id, name, email, role, rating FROM users WHERE id=$1', [userId]);
     // Send welcome email (fire-and-forget)
     try {
       const { sendWelcomeEmail } = require('../services/emailService');
-      const acad = await require('../config/database').query('SELECT name FROM academies WHERE id=$1', [academy_id || req.user.academy_id]);
+      const acad = await require('../config/database').query('SELECT name FROM academies WHERE id=$1', [academyId]);
       sendWelcomeEmail({ to: email, name, role, academyName: acad.rows[0]?.name || 'Chess Academy' }).catch(() => { });
     } catch (_) { }
     res.status(201).json({ message: 'User created successfully', userId, user: created.rows[0] });
