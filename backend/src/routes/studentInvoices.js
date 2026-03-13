@@ -15,17 +15,29 @@ async function generateInvoiceNumber(academyId) {
     return `${prefix}-${String(seq.rows[0].n).padStart(5, '0')}`;
 }
 
-// GET /api/student-invoices — list (admin: all, student: own)
+// GET /api/student-invoices — list (admin: all, student: own, parent: all children)
 router.get('/', async (req, res) => {
     try {
         const { studentId, status, batchId } = req.query;
         const isAdmin = ['academy_admin', 'super_admin'].includes(req.user.role);
-        const sid = isAdmin ? (studentId || null) : req.user.id;
+        const isParent = req.user.role === 'parent';
 
         const conds = ['si.academy_id = $1'];
         const params = [req.user.academyId];
 
-        if (sid) { params.push(sid); conds.push(`si.student_id = $${params.length}`); }
+        if (isAdmin) {
+            // admin: filter by studentId if provided
+            if (studentId) { params.push(studentId); conds.push(`si.student_id = $${params.length}`); }
+        } else if (isParent) {
+            // parent: fetch invoices for all linked children
+            params.push(req.user.id);
+            conds.push(`si.student_id IN (SELECT student_id FROM parent_student WHERE parent_id = $${params.length})`);
+        } else {
+            // student: own invoices only
+            params.push(req.user.id);
+            conds.push(`si.student_id = $${params.length}`);
+        }
+
         if (status) { params.push(status); conds.push(`si.status = $${params.length}`); }
         if (batchId) { params.push(batchId); conds.push(`si.batch_id = $${params.length}`); }
 

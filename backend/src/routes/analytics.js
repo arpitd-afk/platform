@@ -222,8 +222,8 @@ router.get('/coaches/:academyId', authorize('academy_admin', 'super_admin'), asy
         -- Avg attendance rate
         CASE WHEN COUNT(DISTINCT c.id) FILTER (WHERE c.status = 'completed') > 0
           THEN ROUND(
-            100.0 * COUNT(DISTINCT ca.user_id) FILTER (WHERE ca.attended = true) /
-            NULLIF(COUNT(DISTINCT ca.user_id), 0)
+            100.0 * COUNT(ca.student_id) /
+            NULLIF(COUNT(DISTINCT c.id) FILTER (WHERE c.status = 'completed'), 0)
           )
           ELSE NULL
         END AS avg_attendance_pct
@@ -245,14 +245,15 @@ router.get('/coaches/:academyId', authorize('academy_admin', 'super_admin'), asy
         b.coach_id,
         ROUND(AVG(u.rating - COALESCE(rh.prev_rating, u.rating))) AS avg_student_improvement
        FROM batches b
-       JOIN batch_enrollments be ON be.batch_id = b.id
+       JOIN batch_enrollments be ON be.batch_id = b.id AND be.is_active = true
        JOIN users u ON u.id = be.student_id
-       LEFT JOIN (
-         SELECT user_id, rating AS prev_rating
+       LEFT JOIN LATERAL (
+         SELECT rating AS prev_rating
          FROM rating_history
-         WHERE recorded_at < NOW() - INTERVAL '${interval}'
+         WHERE user_id = u.id AND recorded_at < NOW() - INTERVAL '${interval}'
          ORDER BY recorded_at DESC
-       ) rh ON rh.user_id = u.id
+         LIMIT 1
+       ) rh ON true
        WHERE b.academy_id = $1
        GROUP BY b.coach_id`,
       [academyId]

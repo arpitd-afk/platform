@@ -38,20 +38,20 @@ import { formatDistanceToNow } from "date-fns";
 
 // ─── Constants ────────────────────────────────────────────────
 const TYPES = [
-  "tactics",
+  "puzzle",
   "opening",
   "endgame",
-  "analysis",
-  "game_review",
+  "game_analysis",
+  "video",
   "custom",
 ];
 
 const TYPE_CFG: Record<string, { color: string; bg: string; icon: any }> = {
-  tactics: { color: "#7C3AED", bg: "#EDE9FE", icon: Target },
+  puzzle: { color: "#7C3AED", bg: "#EDE9FE", icon: Target },
   opening: { color: "#1D4ED8", bg: "#DBEAFE", icon: BookOpen },
   endgame: { color: "#9A6E00", bg: "rgba(200,150,30,0.12)", icon: Award },
-  analysis: { color: "#15803D", bg: "#DCFCE7", icon: Swords },
-  game_review: { color: "#BE185D", bg: "#FCE7F3", icon: Eye },
+  game_analysis: { color: "#15803D", bg: "#DCFCE7", icon: Swords },
+  video: { color: "#BE185D", bg: "#FCE7F3", icon: Eye },
   custom: {
     color: "var(--text-mid)",
     bg: "var(--bg-subtle)",
@@ -401,7 +401,7 @@ function AssignmentFormModal({
   const [form, setForm] = useState({
     title: initial?.title || "",
     description: initial?.description || "",
-    type: initial?.type || "tactics",
+    type: initial?.type || "puzzle",
     batchId: initial?.batch_id || "",
     studentId: initial?.student_id || "",
     dueDate: initial?.due_date ? initial.due_date.substring(0, 10) : "",

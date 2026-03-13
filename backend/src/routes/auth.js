@@ -7,6 +7,7 @@ const { query, transaction } = require('../config/database');
 const { cache } = require('../config/redis');
 const { authenticate } = require('../middleware/auth');
 const logger = require('../utils/logger');
+const { sendPasswordResetEmail } = require('../services/emailService');
 
 const router = express.Router();
 
@@ -39,6 +40,8 @@ const formatUser = (user) => ({
   academySubdomain: user.academy_subdomain,
   avatar: user.avatar,
   isActive: user.is_active,
+  phone: user.phone || '',
+  bio: user.bio || '',
 });
 
 // POST /api/auth/register
@@ -127,7 +130,8 @@ router.post('/login', [
     const { email, password } = req.body;
 
     const result = await query(
-      `SELECT u.*, a.name as academy_name, a.subdomain as academy_subdomain
+      `SELECT u.*, a.name as academy_name, a.subdomain as academy_subdomain,
+              a.is_active as academy_is_active
        FROM users u LEFT JOIN academies a ON u.academy_id = a.id
        WHERE u.email = $1`,
       [email]
@@ -141,6 +145,11 @@ router.post('/login', [
 
     if (!user.is_active) {
       return res.status(403).json({ message: 'Account is deactivated. Contact support.' });
+    }
+
+    // Block login if their academy is suspended (except super_admin)
+    if (user.role !== 'super_admin' && user.academy_id && user.academy_is_active === false) {
+      return res.status(403).json({ message: 'Your academy has been suspended. Please contact support.' });
     }
 
     const validPassword = await bcrypt.compare(password, user.password_hash);
@@ -220,7 +229,10 @@ router.post('/forgot-password', [
         `UPDATE users SET reset_token = $1, reset_token_expires = NOW() + INTERVAL '1 hour' WHERE id = $2`,
         [resetToken, user.id]
       );
-      // Send reset email (async)
+      // Send reset email (async, fire and forget)
+      sendPasswordResetEmail({ to: email, name: user.name, resetToken }).catch(e =>
+        logger.error('Reset email failed:', e.message)
+      );
       logger.info(`Password reset requested for ${email}`);
     }
 

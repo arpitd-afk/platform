@@ -113,7 +113,7 @@ router.post('/', authorize('academy_admin', 'super_admin', 'coach'), async (req,
       [userId, name, email, hash, targetRole, academyId, phone || null]
     );
     if (batchId) {
-      await query('INSERT INTO batch_enrollments (id, batch_id, student_id, enrolled_at, is_active) VALUES ($1,$2,$3,NOW(),true) ON CONFLICT DO NOTHING', [uuidv4(), batchId, userId]);
+      await query('INSERT INTO batch_enrollments (batch_id, student_id, enrolled_at, is_active) VALUES ($1,$2,NOW(),true) ON CONFLICT (batch_id, student_id) DO NOTHING', [batchId, userId]);
     }
     const created = await query('SELECT id, name, email, role, rating FROM users WHERE id=$1', [userId]);
     // Send welcome email (fire-and-forget)

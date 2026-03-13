@@ -75,7 +75,7 @@ const NAV: Record<string, NavGroup[]> = {
         { label: "Play Chess", href: "/game", icon: Swords },
         { label: "Game History", href: "/student/games", icon: Trophy },
         { label: "My Invoices", href: "/student/invoices", icon: Receipt },
-        { label: "Analysis", href: "/student/games", icon: Brain },
+        // { label: "Analysis", href: "/student/analysis", icon: Brain },
         { label: "Tournaments", href: "/student/tournaments", icon: Award },
       ],
     },

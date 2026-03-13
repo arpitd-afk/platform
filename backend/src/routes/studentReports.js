@@ -18,72 +18,75 @@ router.get('/:studentId/data', async (req, res) => {
             return res.status(403).json({ message: 'Forbidden' });
 
         // Student info
-        const stRes = await query('SELECT id,name,email,phone,rating,created_at,avatar FROM users WHERE id=$1', [studentId]);
+        let stRes; try { stRes = await query('SELECT id,name,email,phone,rating,created_at,avatar FROM users WHERE id=$1', [studentId]); } catch (e) { throw new Error('student: ' + e.message); }
         if (!stRes.rows.length) return res.status(404).json({ message: 'Student not found' });
         const student = stRes.rows[0];
 
         // Academy info
-        const acRes = await query('SELECT id,name,logo_url,settings FROM academies WHERE id=$1', [req.user.academyId]);
+        let acRes; try { acRes = await query('SELECT id,name,logo_url,settings FROM academies WHERE id=$1', [req.user.academyId]); } catch (e) { throw new Error('academy: ' + e.message); }
         const academy = acRes.rows[0] || {};
 
         // Game stats
-        const gameRes = await query(
-            `SELECT
-         COUNT(*) as total,
-         COUNT(*) FILTER (WHERE (result->>'winner'='white' AND white_player_id=$1) OR (result->>'winner'='black' AND black_player_id=$1)) as wins,
-         COUNT(*) FILTER (WHERE (result->>'winner'='white' AND black_player_id=$1) OR (result->>'winner'='black' AND white_player_id=$1)) as losses,
-         COUNT(*) FILTER (WHERE status='completed' AND result->>'winner' IS NULL) as draws
-       FROM games WHERE (white_player_id=$1 OR black_player_id=$1) AND created_at > ${since}`,
-            [studentId]
-        );
+        let gameRes; try {
+            gameRes = await query(
+                `SELECT COUNT(*) as total,
+           COUNT(*) FILTER (WHERE (result->>'winner'='white' AND white_player_id=$1) OR (result->>'winner'='black' AND black_player_id=$1)) as wins,
+           COUNT(*) FILTER (WHERE (result->>'winner'='white' AND black_player_id=$1) OR (result->>'winner'='black' AND white_player_id=$1)) as losses,
+           COUNT(*) FILTER (WHERE status='completed' AND result->>'winner' IS NULL) as draws
+         FROM games WHERE (white_player_id=$1 OR black_player_id=$1) AND created_at > ${since}`,
+                [studentId]);
+        } catch (e) { throw new Error('games: ' + e.message); }
         const gs = gameRes.rows[0];
         const gamesPlayed = parseInt(gs.total);
         const wins = parseInt(gs.wins), losses = parseInt(gs.losses);
         const winRate = gamesPlayed > 0 ? Math.round((wins / gamesPlayed) * 100) : 0;
 
         // Rating history
-        const ratingRes = await query(
-            `SELECT rating, recorded_at FROM rating_history
-       WHERE user_id=$1 AND recorded_at > ${since} ORDER BY recorded_at ASC LIMIT 30`,
-            [studentId]
-        );
+        let ratingRes; try {
+            ratingRes = await query(
+                `SELECT rating, recorded_at FROM rating_history WHERE user_id=$1 AND recorded_at > ${since} ORDER BY recorded_at ASC LIMIT 30`,
+                [studentId]);
+        } catch (e) { throw new Error('rating_history: ' + e.message); }
 
         // Recent games
-        const recentRes = await query(
-            `SELECT g.id, g.result, g.status, g.white_player_id, g.black_player_id,
-         g.white_rating_change, g.black_rating_change, g.created_at, g.time_control,
-         wu.name as white_name, bu.name as black_name
-       FROM games g
-       LEFT JOIN users wu ON wu.id = g.white_player_id
-       LEFT JOIN users bu ON bu.id = g.black_player_id
-       WHERE (g.white_player_id=$1 OR g.black_player_id=$1) AND g.status='completed'
-       ORDER BY g.created_at DESC LIMIT 6`,
-            [studentId]
-        );
+        let recentRes; try {
+            recentRes = await query(
+                `SELECT g.id, g.result, g.status, g.white_player_id, g.black_player_id,
+           (g.white_rating_after - g.white_rating_before) as white_rating_change,
+           (g.black_rating_after - g.black_rating_before) as black_rating_change,
+           g.created_at, g.time_control,
+           wu.name as white_name, bu.name as black_name
+         FROM games g
+         LEFT JOIN users wu ON wu.id = g.white_player_id
+         LEFT JOIN users bu ON bu.id = g.black_player_id
+         WHERE (g.white_player_id=$1 OR g.black_player_id=$1) AND g.status='completed'
+         ORDER BY g.created_at DESC LIMIT 6`,
+                [studentId]);
+        } catch (e) { throw new Error('recent_games: ' + e.message); }
 
         // Puzzle stats
-        const puzzleRes = await query(
-            `SELECT
-         COUNT(*) as attempted,
-         COUNT(*) FILTER (WHERE is_correct=true) as solved,
-         AVG(time_taken_ms) FILTER (WHERE is_correct=true) as avg_time
-       FROM puzzle_attempts WHERE user_id=$1 AND attempted_at > ${since}`,
-            [studentId]
-        );
+        let puzzleRes; try {
+            puzzleRes = await query(
+                `SELECT COUNT(*) as attempted,
+           COUNT(*) FILTER (WHERE is_correct=true) as solved,
+           AVG(time_taken_ms) FILTER (WHERE is_correct=true) as avg_time
+         FROM puzzle_attempts WHERE user_id=$1 AND attempted_at > ${since}`,
+                [studentId]);
+        } catch (e) { throw new Error('puzzle_attempts: ' + e.message); }
         const ps = puzzleRes.rows[0];
         const attempted = parseInt(ps.attempted), solved = parseInt(ps.solved);
 
         // Attendance
-        const attRes = await query(
-            `SELECT
-         COUNT(*) as total,
-         COUNT(*) FILTER (WHERE ca.status='present') as present,
-         COUNT(*) FILTER (WHERE ca.status='absent') as absent
-       FROM classroom_attendance ca
-       JOIN classrooms c ON c.id = ca.classroom_id
-       WHERE ca.student_id=$1 AND ca.date > ${since}`,
-            [studentId]
-        );
+        let attRes; try {
+            attRes = await query(
+                `SELECT COUNT(*) as total,
+           COUNT(*) FILTER (WHERE ca.joined_at IS NOT NULL) as present,
+           COUNT(*) FILTER (WHERE ca.joined_at IS NULL) as absent
+         FROM classroom_attendance ca
+         JOIN classrooms c ON c.id = ca.classroom_id
+         WHERE ca.student_id=$1 AND c.created_at > ${since}`,
+                [studentId]);
+        } catch (e) { throw new Error('attendance: ' + e.message); }
         const att = attRes.rows[0];
         const attTotal = parseInt(att.total);
         const attPresent = parseInt(att.present);
@@ -144,7 +147,9 @@ router.get('/:studentId/pdf', async (req, res) => {
         );
         const recentRes = await query(
             `SELECT g.id,g.result,g.status,g.white_player_id,g.black_player_id,
-         g.white_rating_change,g.black_rating_change,g.created_at,
+         (g.white_rating_after - g.white_rating_before) as white_rating_change,
+         (g.black_rating_after - g.black_rating_before) as black_rating_change,
+         g.created_at, g.time_control,
          wu.name as white_name, bu.name as black_name
        FROM games g LEFT JOIN users wu ON wu.id=g.white_player_id LEFT JOIN users bu ON bu.id=g.black_player_id
        WHERE (g.white_player_id=$1 OR g.black_player_id=$1) AND g.status='completed'
@@ -159,10 +164,10 @@ router.get('/:studentId/pdf', async (req, res) => {
         const ps = puzzleRes.rows[0];
         const attRes = await query(
             `SELECT COUNT(*) as total,
-         COUNT(*) FILTER (WHERE ca.status='present') as present,
-         COUNT(*) FILTER (WHERE ca.status='absent') as absent
+         COUNT(*) FILTER (WHERE ca.joined_at IS NOT NULL) as present,
+         COUNT(*) FILTER (WHERE ca.joined_at IS NULL) as absent
        FROM classroom_attendance ca JOIN classrooms c ON c.id=ca.classroom_id
-       WHERE ca.student_id=$1 AND ca.date > ${since}`,
+       WHERE ca.student_id=$1 AND c.created_at > ${since}`,
             [studentId]
         );
         const att = attRes.rows[0];

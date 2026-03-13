@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios, { AxiosRequestConfig } from "axios";
 import Cookies from "js-cookie";
 
 export const api = axios.create({
@@ -42,17 +42,11 @@ export const usersAPI = {
   get: (id: string) => api.get(`/users/${id}`),
   create: (d: any) => api.post("/users", d),
   update: (id: string, d: any) => api.put(`/users/${id}`, d),
-  updateStatus: (id: string, active: boolean) =>
-    api.put(`/users/${id}/status`, { active }),
   stats: (id: string) => api.get(`/users/${id}/stats`),
   linkParent: (studentId: string, parentEmail: string) =>
     api.post(`/users/${studentId}/link-parent`, { parentEmail }),
   uploadAvatar: (id: string, avatarBase64: string) =>
     api.post(`/users/${id}/avatar`, { avatarBase64 }),
-  // ── Coach assignment ──
-  assignCoach: (studentId: string, coachId: string | null) =>
-    api.put(`/users/${studentId}/assign-coach`, { coachId }),
-  coachesWithStudents: () => api.get("/users/coaches/with-students"),
 };
 
 // ─── Academies ─────────────────────────────────────────────
@@ -155,8 +149,8 @@ export const assignmentsAPI = {
   delete: (id: string) => api.delete(`/assignments/${id}`),
   submit: (id: string, d: any) => api.post(`/assignments/${id}/submit`, d),
   submissions: (id: string) => api.get(`/assignments/${id}/submissions`),
-  grade: (id: string, subId: string, d: any) =>
-    api.put(`/assignments/${id}/submissions/${subId}/grade`, d),
+  grade: (id: string, submissionId: string, d: any) =>
+    api.put(`/assignments/${id}/submissions/${submissionId}/grade`, d),
 };
 
 // ─── Notifications ─────────────────────────────────────────
@@ -181,6 +175,10 @@ export const analyticsAPI = {
 // ─── Billing ───────────────────────────────────────────────
 export const billingAPI = {
   plans: () => api.get("/billing/plans"),
+  plansAll: () => api.get("/billing/plans/all"),
+  createPlan: (data: any) => api.post("/billing/plans", data),
+  updatePlan: (id: string, data: any) => api.put(`/billing/plans/${id}`, data),
+  deletePlan: (id: string) => api.delete(`/billing/plans/${id}`),
   invoices: (academyId: string) => api.get(`/billing/invoices/${academyId}`),
   upgrade: (academyId: string, plan: string) =>
     api.post(`/billing/upgrade`, { academyId, plan }),
@@ -198,7 +196,7 @@ export const anticheatAPI = {
   review: (id: string, d: any) => api.put(`/anticheat/reports/${id}`, d),
 };
 
-// ─── Announcements ─────────────────────────────────────────
+// ─── Announcements ──────────────────────────────────────────────
 export const announcementsAPI = {
   list: (params?: any) => api.get("/announcements", { params }),
   listAll: () => api.get("/announcements/all"),
@@ -208,6 +206,8 @@ export const announcementsAPI = {
   pin: (id: string, pinned: boolean) =>
     api.put(`/announcements/${id}/pin`, { pinned }),
 };
+
+export default api;
 
 // ─── Messages ──────────────────────────────────────────────
 export const messagesAPI = {
@@ -267,12 +267,11 @@ export const billingExtAPI = {
   verifyPayment: (data: any) => api.post("/billing/razorpay/verify", data),
 };
 
-// ─── Activity Logs ─────────────────────────────────────────
+// ─── Activity Logs ──────────────────────────────────────────
 export const activityLogsAPI = {
   list: (p?: any) => api.get("/activity-logs", { params: p }),
 };
 
-// ─── Student Invoices ──────────────────────────────────────
 export const studentInvoicesAPI = {
   list: (params?: any) => api.get("/student-invoices", { params }),
   get: (id: string) => api.get(`/student-invoices/${id}`),
@@ -284,12 +283,9 @@ export const studentInvoicesAPI = {
     api.get(`/student-invoices/summary/${academyId}`),
 };
 
-// ─── Student Reports ───────────────────────────────────────
 export const studentReportsAPI = {
   data: (studentId: string, periodDays = 90) =>
     api.get(`/student-reports/${studentId}/data`, { params: { periodDays } }),
   pdfUrl: (studentId: string, periodDays = 90) =>
     `${api.defaults.baseURL}/student-reports/${studentId}/pdf?periodDays=${periodDays}`,
 };
-
-export default api;

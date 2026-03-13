@@ -4,6 +4,7 @@ const { body, validationResult } = require('express-validator');
 const { query, transaction } = require('../config/database');
 const { cache } = require('../config/redis');
 const { authenticate, authorize } = require('../middleware/auth');
+const bcrypt = require('bcryptjs');
 const logger = require('../utils/logger');
 
 const router = express.Router();
@@ -118,24 +119,50 @@ router.post('/', authorize('super_admin'), [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { name, subdomain, ownerEmail, plan } = req.body;
+    const { name, subdomain, ownerEmail, ownerName, ownerPassword, plan } = req.body;
 
     const existingSub = await query('SELECT id FROM academies WHERE subdomain = $1', [subdomain]);
     if (existingSub.rows.length > 0) {
       return res.status(409).json({ message: 'Subdomain already taken' });
     }
 
-    const owner = await query('SELECT id FROM users WHERE email = $1', [ownerEmail]);
-    const ownerId = owner.rows[0]?.id;
-
+    // Create academy first (owner assigned after)
     const academyId = uuidv4();
     await query(
-      `INSERT INTO academies (id, name, subdomain, owner_id, plan, is_active, trial_ends_at, created_at)
-       VALUES ($1, $2, $3, $4, $5, true, NOW() + INTERVAL '14 days', NOW())`,
-      [academyId, name, subdomain, ownerId || null, plan]
+      `INSERT INTO academies (id, name, subdomain, plan, is_active, trial_ends_at, created_at)
+       VALUES ($1, $2, $3, $4, true, NOW() + INTERVAL '14 days', NOW())`,
+      [academyId, name, subdomain, plan]
     );
 
-    res.status(201).json({ message: 'Academy created', academyId });
+    // Find or create the academy admin user
+    let ownerId = null;
+    if (ownerEmail) {
+      const existing = await query('SELECT id FROM users WHERE email = $1', [ownerEmail]);
+      if (existing.rows.length > 0) {
+        ownerId = existing.rows[0].id;
+        // Update their academy assignment
+        await query(
+          'UPDATE users SET academy_id = $1, role = $2 WHERE id = $3',
+          [academyId, 'academy_admin', ownerId]
+        );
+      } else if (ownerName) {
+        // Create new academy_admin account
+        const hash = await bcrypt.hash(ownerPassword || 'Admin@123', 10);
+        ownerId = uuidv4();
+        await query(
+          `INSERT INTO users (id, name, email, password_hash, role, academy_id, is_active, created_at)
+           VALUES ($1, $2, $3, $4, 'academy_admin', $5, true, NOW())`,
+          [ownerId, ownerName, ownerEmail, hash, academyId]
+        );
+      }
+
+      // Link owner to academy
+      if (ownerId) {
+        await query('UPDATE academies SET owner_id = $1 WHERE id = $2', [ownerId, academyId]);
+      }
+    }
+
+    res.status(201).json({ message: 'Academy created', academyId, ownerId });
   } catch (error) {
     logger.error('Create academy error:', error);
     res.status(500).json({ message: 'Failed to create academy' });
@@ -150,11 +177,16 @@ router.put('/:id', async (req, res) => {
       return res.status(403).json({ message: 'Access denied' });
     }
 
-    const { name, settings, theme } = req.body;
-    await query(
-      'UPDATE academies SET name = COALESCE($1, name), settings = COALESCE($2, settings), theme = COALESCE($3, theme), updated_at = NOW() WHERE id = $4',
-      [name, settings ? JSON.stringify(settings) : null, theme ? JSON.stringify(theme) : null, id]
-    );
+    const { name, settings, theme, plan } = req.body;
+    const fields = [];
+    const vals = [];
+    if (name !== undefined) { vals.push(name); fields.push(`name=$${vals.length}`); }
+    if (settings !== undefined) { vals.push(JSON.stringify(settings)); fields.push(`settings=$${vals.length}`); }
+    if (theme !== undefined) { vals.push(JSON.stringify(theme)); fields.push(`theme=$${vals.length}`); }
+    if (plan !== undefined) { vals.push(plan); fields.push(`plan=$${vals.length}`); }
+    if (fields.length === 0) return res.json({ message: 'Nothing to update' });
+    vals.push(id);
+    await query(`UPDATE academies SET ${fields.join(',')} , updated_at=NOW() WHERE id=$${vals.length}`, vals);
 
     await cache.del(`academy:${id}`);
     res.json({ message: 'Academy updated' });

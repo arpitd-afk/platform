@@ -1,14 +1,9 @@
 {
   "pages": {
-    "/(dashboard)/academy/coaches/page": [
+    "/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/academy/coaches/page.js"
-    ],
-    "/(dashboard)/layout": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/layout.js"
+      "static/chunks/app/page.js"
     ],
     "/layout": [
       "static/chunks/webpack.js",
@@ -16,35 +11,30 @@
       "static/css/app/layout.css",
       "static/chunks/app/layout.js"
     ],
-    "/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/page.js"
-    ],
     "/(auth)/login/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/(auth)/login/page.js"
     ],
-    "/(dashboard)/coach/page": [
+    "/(dashboard)/super-admin/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/coach/page.js"
+      "static/chunks/app/(dashboard)/super-admin/page.js"
     ],
-    "/(dashboard)/coach/students/page": [
+    "/(dashboard)/layout": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/coach/students/page.js"
+      "static/chunks/app/(dashboard)/layout.js"
+    ],
+    "/(dashboard)/super-admin/academies/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(dashboard)/super-admin/academies/page.js"
     ],
     "/(dashboard)/academy/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/(dashboard)/academy/page.js"
-    ],
-    "/(dashboard)/academy/batches/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/academy/batches/page.js"
     ],
     "/(dashboard)/academy/analytics/page": [
       "static/chunks/webpack.js",
@@ -56,10 +46,25 @@
       "static/chunks/main-app.js",
       "static/chunks/app/(dashboard)/academy/students/page.js"
     ],
+    "/(dashboard)/academy/coaches/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(dashboard)/academy/coaches/page.js"
+    ],
+    "/(dashboard)/academy/batches/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(dashboard)/academy/batches/page.js"
+    ],
     "/(dashboard)/academy/classes/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/(dashboard)/academy/classes/page.js"
+    ],
+    "/classroom/[id]/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/classroom/[id]/page.js"
     ],
     "/(dashboard)/academy/announcements/page": [
       "static/chunks/webpack.js",
@@ -91,6 +96,26 @@
       "static/chunks/main-app.js",
       "static/chunks/app/(dashboard)/academy/settings/page.js"
     ],
+    "/(dashboard)/coach/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(dashboard)/coach/page.js"
+    ],
+    "/(dashboard)/coach/students/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(dashboard)/coach/students/page.js"
+    ],
+    "/(dashboard)/coach/analysis/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(dashboard)/coach/analysis/page.js"
+    ],
+    "/(dashboard)/coach/classroom/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(dashboard)/coach/classroom/page.js"
+    ],
     "/(dashboard)/coach/assignments/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
@@ -116,10 +141,25 @@
       "static/chunks/main-app.js",
       "static/chunks/app/(dashboard)/coach/attendance/page.js"
     ],
-    "/(dashboard)/coach/analysis/page": [
+    "/(dashboard)/coach/reports/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/coach/analysis/page.js"
+      "static/chunks/app/(dashboard)/coach/reports/page.js"
+    ],
+    "/(dashboard)/coach/messages/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(dashboard)/coach/messages/page.js"
+    ],
+    "/(dashboard)/coach/settings/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(dashboard)/coach/settings/page.js"
+    ],
+    "/(dashboard)/profile/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(dashboard)/profile/page.js"
     ],
     "/(dashboard)/student/page": [
       "static/chunks/webpack.js",
@@ -141,6 +181,11 @@
       "static/chunks/main-app.js",
       "static/chunks/app/(dashboard)/student/assignments/page.js"
     ],
+    "/(dashboard)/student/invoices/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(dashboard)/student/invoices/page.js"
+    ],
     "/(dashboard)/student/attendance/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
@@ -155,11 +200,6 @@
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/(dashboard)/student/games/page.js"
-    ],
-    "/(dashboard)/student/invoices/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/student/invoices/page.js"
     ],
     "/(dashboard)/student/tournaments/page": [
       "static/chunks/webpack.js",
@@ -181,15 +221,15 @@
       "static/chunks/main-app.js",
       "static/chunks/app/(dashboard)/student/messages/page.js"
     ],
-    "/(dashboard)/parent/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/parent/page.js"
-    ],
     "/(dashboard)/notifications/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/(dashboard)/notifications/page.js"
+    ],
+    "/(dashboard)/parent/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(dashboard)/parent/page.js"
     ],
     "/(dashboard)/parent/children/page": [
       "static/chunks/webpack.js",
@@ -226,25 +266,35 @@
       "static/chunks/main-app.js",
       "static/chunks/app/(dashboard)/parent/settings/page.js"
     ],
-    "/(auth)/forgot-password/page": [
+    "/(dashboard)/super-admin/users/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(auth)/forgot-password/page.js"
+      "static/chunks/app/(dashboard)/super-admin/users/page.js"
     ],
-    "/(auth)/register/page": [
+    "/(dashboard)/super-admin/anticheat/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(auth)/register/page.js"
+      "static/chunks/app/(dashboard)/super-admin/anticheat/page.js"
     ],
-    "/(dashboard)/super-admin/page": [
+    "/(dashboard)/super-admin/analytics/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/super-admin/page.js"
+      "static/chunks/app/(dashboard)/super-admin/analytics/page.js"
     ],
-    "/(dashboard)/super-admin/academies/page": [
+    "/(dashboard)/super-admin/billing/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/super-admin/academies/page.js"
+      "static/chunks/app/(dashboard)/super-admin/billing/page.js"
+    ],
+    "/(dashboard)/super-admin/logs/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(dashboard)/super-admin/logs/page.js"
+    ],
+    "/(dashboard)/super-admin/settings/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(dashboard)/super-admin/settings/page.js"
     ],
     "/_not-found/page": [
       "static/chunks/webpack.js",

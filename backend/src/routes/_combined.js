@@ -14,17 +14,26 @@ usersRouter.get('/', async (req, res) => {
     const conditions = ['u.is_active = true'];
     const params = [];
 
-    const targetAcademy = academyId || req.user.academyId;
-    if (targetAcademy) { params.push(targetAcademy); conditions.push(`u.academy_id = $${params.length}`); }
+    // super_admin can see all users or filter by academyId
+    // other roles see only their own academy
+    if (req.user.role === 'super_admin') {
+      if (academyId) { params.push(academyId); conditions.push(`u.academy_id = $${params.length}`); }
+    } else {
+      const targetAcademy = academyId || req.user.academyId;
+      if (targetAcademy) { params.push(targetAcademy); conditions.push(`u.academy_id = $${params.length}`); }
+    }
     if (role) { params.push(role); conditions.push(`u.role = $${params.length}`); }
 
     params.push(limit, offset);
     const result = await query(
       `SELECT u.id, u.name, u.email, u.role, u.rating, u.avatar, u.phone,
               u.is_active, u.last_login_at, u.created_at, u.assigned_coach_id,
+              u.academy_id,
+              a.name as academy_name,
               c.name as assigned_coach_name, c.avatar as assigned_coach_avatar,
               be.batch_id, b.name as batch_name
        FROM users u
+       LEFT JOIN academies a ON a.id = u.academy_id
        LEFT JOIN users c ON c.id = u.assigned_coach_id
        LEFT JOIN batch_enrollments be ON be.student_id = u.id AND be.is_active = true
        LEFT JOIN batches b ON b.id = be.batch_id
@@ -186,9 +195,30 @@ assignmentsRouter.get('/', async (req, res) => {
     const params = [];
     if (studentId) { params.push(studentId); conditions.push(`(a.student_id=$${params.length} OR a.batch_id IN (SELECT batch_id FROM batch_enrollments WHERE student_id=$${params.length}))`); }
     if (batchId) { params.push(batchId); conditions.push(`a.batch_id=$${params.length}`); }
+    // LEFT JOIN latest submission so student can see submitted/graded state
+    const studentCtx = studentId || (req.user.role === 'student' ? req.user.id : null);
+    let subSelect = '';
+    let subJoin = '';
+    if (studentCtx) {
+      params.push(studentCtx);
+      const pIdx = params.length;
+      subSelect = `, sub.submitted_at as submitted_at, sub.score as grade, sub.feedback, sub.submission`;
+      subJoin = `LEFT JOIN LATERAL (
+        SELECT sub2.submitted_at, sub2.score, sub2.feedback, sub2.submission
+        FROM assignment_submissions sub2
+        WHERE sub2.assignment_id = a.id AND sub2.student_id = $${pIdx}
+        ORDER BY sub2.submitted_at DESC LIMIT 1
+      ) sub ON true`;
+    }
+
     const result = await query(
-      `SELECT a.*, u.name as coach_name FROM assignments a
-       LEFT JOIN users u ON a.coach_id=u.id
+      `SELECT a.id, a.title, a.description, a.type, a.due_date, a.content,
+              a.coach_id, a.batch_id, a.student_id, a.passing_score, a.max_attempts,
+              a.created_at, u.name as coach_name
+              ${subSelect}
+       FROM assignments a
+       LEFT JOIN users u ON a.coach_id = u.id
+       ${subJoin}
        ${conditions.length ? 'WHERE ' + conditions.join(' AND ') : ''}
        ORDER BY a.created_at DESC`,
       params

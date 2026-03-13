@@ -129,10 +129,17 @@ router.get('/', async (req, res) => {
       conditions.push(`(t.academy_id = $${params.length} OR t.is_public = true)`);
     }
 
+    // Add current user id for is_registered subquery
+    params.push(req.user.id);
+    const userIdxParam = params.length;
     params.push(limit, offset);
     const result = await query(
       `SELECT t.*, a.name as academy_name,
-        COUNT(DISTINCT tr.player_id) as registered_count
+        COUNT(DISTINCT tr.player_id) as registered_count,
+        EXISTS (
+          SELECT 1 FROM tournament_registrations ur
+          WHERE ur.tournament_id = t.id AND ur.player_id = $${userIdxParam}
+        ) as is_registered
        FROM tournaments t
        LEFT JOIN academies a ON t.academy_id = a.id
        LEFT JOIN tournament_registrations tr ON tr.tournament_id = t.id
@@ -264,7 +271,7 @@ router.post('/:id/unregister', async (req, res) => {
     );
     res.json({ message: 'Unregistered' });
   } catch (e) {
-    res.status(500).json({ message: 'Failed' });
+    res.status(500).json({ message: 'Failed', _route: 'tournaments' });
   }
 });
 
@@ -578,7 +585,7 @@ router.post('/:id/cancel', authorize('academy_admin', 'coach', 'super_admin'), a
     await query(`UPDATE tournaments SET status='cancelled' WHERE id=$1`, [req.params.id]);
     res.json({ message: 'Tournament cancelled' });
   } catch (e) {
-    res.status(500).json({ message: 'Failed' });
+    res.status(500).json({ message: 'Failed', _route: 'tournaments' });
   }
 });
 
