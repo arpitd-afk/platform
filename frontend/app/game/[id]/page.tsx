@@ -3,8 +3,20 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { gamesAPI } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
-import GameAnalysis from "@/components/shared/GameAnalysis";
+import dynamic from "next/dynamic";
 import { Chess } from "chess.js";
+
+const GameAnalysis = dynamic(() => import("@/components/shared/GameAnalysis"), {
+  ssr: false,
+  loading: () => (
+    <div className="h-[400px] flex items-center justify-center bg-surface-50 rounded-xl border border-dashed border-surface-300">
+      <div className="flex flex-col items-center gap-3">
+        <Loader2 className="animate-spin text-amber" size={24} />
+        <span className="text-xs text-surface-500 font-medium">Loading Analysis Engine...</span>
+      </div>
+    </div>
+  ),
+});
 import {
   Brain,
   ChevronLeft,

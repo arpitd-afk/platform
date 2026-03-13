@@ -286,7 +286,7 @@ export default function ClassroomPage() {
                 position={chess.fen()}
                 onPieceDrop={isCoach ? handleCoachMove : () => false}
                 arePiecesDraggable={isCoach}
-                customArrows={arrows}
+                customArrows={arrows as any}
                 onArrowsChange={isCoach ? handleArrowDraw as any : undefined}
                 boardOrientation="white"
                 customBoardStyle={{ borderRadius: '16px' }}

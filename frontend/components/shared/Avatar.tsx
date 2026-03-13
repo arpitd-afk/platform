@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Camera, Loader2 } from 'lucide-react'
 import { usersAPI } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
+import NextImage from 'next/image'
 import toast from 'react-hot-toast'
 
 const ROLE_BG: Record<string, string> = {
@@ -82,7 +83,13 @@ export default function Avatar({ user, size = 'md', editable = false, onUpdate, 
     <div className={`relative inline-flex items-center justify-center flex-shrink-0 rounded-full ${s.box} ${className}`}
       style={{ background: user?.avatar ? 'transparent' : bg }}>
       {user?.avatar ? (
-        <img src={user.avatar} alt={user.name || ''} className={`${s.box} rounded-full object-cover`} />
+        <NextImage 
+          src={user.avatar} 
+          alt={user.name || ''} 
+          width={100}
+          height={100}
+          className={`${s.box} rounded-full object-cover`} 
+        />
       ) : (
         <span className={`${s.text} font-bold select-none`} style={{ color }}>{initial}</span>
       )}

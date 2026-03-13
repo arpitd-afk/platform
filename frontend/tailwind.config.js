@@ -11,21 +11,26 @@ module.exports = {
     extend: {
       colors: {
         gold: {
-          DEFAULT: '#D4AF37',
-          light: '#F0D060',
-          dark: '#A08020',
-          dim: 'rgba(212,175,55,0.15)',
+          DEFAULT: '#B48A2E',
+          light: '#D4AE5E',
+          dark: '#8C6A1F',
+          dim: 'rgba(180, 138, 46, 0.1)',
         },
         surface: {
-          900: '#0F0E0B',
-          800: '#141210',
-          700: '#1A1710',
-          600: '#201D14',
-          500: '#2A2520',
+          50: '#FAF9F6',
+          100: '#F5F2ED',
+          200: '#E8E1D9',
+          300: '#DCD3C8',
+          400: '#BFB2A3',
+          500: '#8C837A',
+          600: '#736B63',
+          700: '#4A423A',
+          800: '#26221E',
+          900: '#1A1510',
         },
         board: {
-          light: '#F0D9B5',
-          dark: '#B58863',
+          light: '#E8E1D9',
+          dark: '#B48A2E',
         },
       },
       fontFamily: {

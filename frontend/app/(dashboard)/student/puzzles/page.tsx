@@ -524,7 +524,7 @@ function CustomPuzzleCard({ puzzle }: { puzzle: any }) {
   const isSolved = !!puzzle.solved_by_me;
 
   const handleMove = useCallback(
-    async (from: string, to: string) => {
+    (from: string, to: string) => {
       if (result || !expanded) return false;
       const g = new Chess(chess.fen());
       const m = g.move({ from, to, promotion: "q" });
@@ -538,12 +538,13 @@ function CustomPuzzleCard({ puzzle }: { puzzle: any }) {
       // Auto-submit after each move attempt
       const expected = puzzle.solution_moves.trim().toLowerCase().split(/\s+/);
       if (newMoves.length >= expected.length) {
-        const res = await submitCustom.mutateAsync({
+        submitCustom.mutateAsync({
           id: puzzle.id,
           moves: newMoves,
           timeTakenMs: Date.now() - startTime.current,
+        }).then(res => {
+          setResult(res.data);
         });
-        setResult(res.data);
       }
       return true;
     },
@@ -808,7 +809,7 @@ export default function PuzzlesPage() {
   }, [lichessPuzzle]);
 
   const handleLichessMove = useCallback(
-    async (from: string, to: string) => {
+    (from: string, to: string) => {
       if (!lichessChess || !lichessPuzzle || result) return false;
       const g = new Chess(lichessChess.fen());
       const m = g.move({ from, to, promotion: "q" });
@@ -816,16 +817,15 @@ export default function PuzzlesPage() {
       setLichessChess(g);
 
       const uciMove = from + to + (m.promotion || "");
-      try {
-        const res = await submitLichess.mutateAsync({
-          id: lichessPuzzle.id,
-          moves: [uciMove],
-          timeTakenMs: Date.now() - startTimeRef.current,
-        });
+      submitLichess.mutateAsync({
+        id: lichessPuzzle.id,
+        moves: [uciMove],
+        timeTakenMs: Date.now() - startTimeRef.current,
+      }).then(res => {
         setResult(res.data.isCorrect ? "correct" : "wrong");
-      } catch {
+      }).catch(() => {
         setResult("wrong");
-      }
+      });
       return true;
     },
     [lichessChess, lichessPuzzle, result, submitLichess],

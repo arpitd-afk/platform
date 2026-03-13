@@ -1,30 +1,15 @@
 {
   "pages": {
-    "/(dashboard)/academy/invoices/page": [
+    "/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/academy/invoices/page.js"
-    ],
-    "/(dashboard)/layout": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/layout.js"
+      "static/chunks/app/page.js"
     ],
     "/layout": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/css/app/layout.css",
       "static/chunks/app/layout.js"
-    ],
-    "/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/page.js"
-    ],
-    "/(dashboard)/super-admin/billing/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/super-admin/billing/page.js"
     ],
     "/(auth)/login/page": [
       "static/chunks/webpack.js",
@@ -36,50 +21,45 @@
       "static/chunks/main-app.js",
       "static/chunks/app/(dashboard)/super-admin/page.js"
     ],
-    "/(dashboard)/academy/billing/page": [
+    "/(dashboard)/layout": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/academy/billing/page.js"
+      "static/chunks/app/(dashboard)/layout.js"
     ],
-    "/(dashboard)/academy/students/page": [
+    "/(dashboard)/super-admin/academies/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/academy/students/page.js"
+      "static/chunks/app/(dashboard)/super-admin/academies/page.js"
     ],
-    "/(dashboard)/academy/page": [
+    "/(dashboard)/super-admin/users/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/academy/page.js"
+      "static/chunks/app/(dashboard)/super-admin/users/page.js"
     ],
-    "/(dashboard)/academy/tournaments/page": [
+    "/(dashboard)/super-admin/analytics/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/academy/tournaments/page.js"
+      "static/chunks/app/(dashboard)/super-admin/analytics/page.js"
     ],
-    "/(dashboard)/academy/classes/page": [
+    "/(dashboard)/super-admin/billing/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/academy/classes/page.js"
+      "static/chunks/app/(dashboard)/super-admin/billing/page.js"
     ],
-    "/(dashboard)/academy/announcements/page": [
+    "/(dashboard)/super-admin/anticheat/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/academy/announcements/page.js"
+      "static/chunks/app/(dashboard)/super-admin/anticheat/page.js"
     ],
-    "/(dashboard)/academy/settings/page": [
+    "/(dashboard)/super-admin/logs/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/academy/settings/page.js"
+      "static/chunks/app/(dashboard)/super-admin/logs/page.js"
     ],
-    "/(dashboard)/academy/batches/page": [
+    "/(dashboard)/super-admin/settings/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/academy/batches/page.js"
-    ],
-    "/(dashboard)/notifications/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/notifications/page.js"
+      "static/chunks/app/(dashboard)/super-admin/settings/page.js"
     ]
   }
 }

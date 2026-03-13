@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
 import { Chessboard } from 'react-chessboard'
 import { Chess } from 'chess.js'
 import { useAuth } from '@/lib/auth-context'
@@ -32,7 +32,7 @@ type GameState = {
   result?: { winner: string | null; reason: string }
 }
 
-export default function GamePage() {
+function GameContent() {
   const { user } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -424,5 +424,17 @@ export default function GamePage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function GamePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[var(--bg)] flex items-center justify-center p-4">
+        <Loader2 className="animate-spin text-[var(--amber)]" size={32} />
+      </div>
+    }>
+      <GameContent />
+    </Suspense>
   )
 }

@@ -42,11 +42,23 @@ export const usersAPI = {
   get: (id: string) => api.get(`/users/${id}`),
   create: (d: any) => api.post("/users", d),
   update: (id: string, d: any) => api.put(`/users/${id}`, d),
-  stats: (id: string) => api.get(`/users/${id}/stats`),
+  stats: (id: string, p?: any) => api.get(`/users/${id}/stats`, { params: p }),
   linkParent: (studentId: string, parentEmail: string) =>
     api.post(`/users/${studentId}/link-parent`, { parentEmail }),
   uploadAvatar: (id: string, avatarBase64: string) =>
     api.post(`/users/${id}/avatar`, { avatarBase64 }),
+  assignCoach: (studentId: string, coachId: string | null) =>
+    api.post(`/users/${studentId}/assign-coach`, { coachId }),
+  updateStatus: (id: string, active: boolean) =>
+    api.put(`/users/${id}/status`, { active }),
+  ratingHistory: (id: string, limit = 30) =>
+    api.get(`/users/${id}/rating-history`, { params: { limit } }),
+  myChildren: () => api.get("/users/my-children"),
+  attendance: (id: string) => api.get(`/users/${id}/attendance`),
+  leaderboard: (academyId: string) =>
+    api.get(`/users/leaderboard/${academyId}`),
+  childrenProgress: (parentId: string) =>
+    api.get(`/users/children/${parentId}/progress`),
 };
 
 // ─── Academies ─────────────────────────────────────────────
@@ -58,6 +70,8 @@ export const academiesAPI = {
   stats: (id: string) => api.get(`/academies/${id}/stats`),
   suspend: (id: string) => api.post(`/academies/${id}/suspend`),
   activate: (id: string) => api.post(`/academies/${id}/activate`),
+  students: (id: string, p?: any) =>
+    api.get(`/academies/${id}/students`, { params: p }),
 };
 
 // ─── Batches ───────────────────────────────────────────────
@@ -96,6 +110,8 @@ export const gamesAPI = {
   resign: (id: string) => api.post(`/games/${id}/resign`),
   analyze: (id: string) => api.post(`/games/${id}/analyze`),
   analysis: (id: string) => api.get(`/games/${id}/analysis`),
+  playerHistory: (id: string, p?: any) =>
+    api.get(`/games/user/${id}`, { params: p }),
 };
 
 // ─── Tournaments ───────────────────────────────────────────
@@ -111,6 +127,7 @@ export const tournamentsAPI = {
   standings: (id: string) => api.get(`/tournaments/${id}/standings`),
   pairings: (id: string, round?: number) =>
     api.get(`/tournaments/${id}/pairings`, { params: round ? { round } : {} }),
+  players: (id: string) => api.get(`/tournaments/${id}/players`),
   nextRound: (id: string) => api.post(`/tournaments/${id}/next-round`),
   setResult: (id: string, matchId: string, result: string) =>
     api.put(`/tournaments/${id}/matches/${matchId}/result`, { result }),
@@ -170,6 +187,7 @@ export const analyticsAPI = {
   coaches: (id: string, p?: any) =>
     api.get(`/analytics/coaches/${id}`, { params: p }),
   global: (p?: any) => api.get("/analytics/global", { params: p }),
+  platform: () => api.get("/analytics/global"),
 };
 
 // ─── Billing ───────────────────────────────────────────────
@@ -179,7 +197,14 @@ export const billingAPI = {
   createPlan: (data: any) => api.post("/billing/plans", data),
   updatePlan: (id: string, data: any) => api.put(`/billing/plans/${id}`, data),
   deletePlan: (id: string) => api.delete(`/billing/plans/${id}`),
+  subscription: (academyId: string) =>
+    api.get(`/billing/subscription/${academyId}`),
+  myInvoices: () => api.get("/billing/my-invoices"),
   invoices: (academyId: string) => api.get(`/billing/invoices/${academyId}`),
+  changePlan: (academyId: string, planName: string) =>
+    api.post("/billing/change-plan", { academyId, planName }),
+  createOrder: (data: any) => api.post("/billing/razorpay/create-order", data),
+  verifyPayment: (data: any) => api.post("/billing/razorpay/verify", data),
   upgrade: (academyId: string, plan: string) =>
     api.post(`/billing/upgrade`, { academyId, plan }),
 };
@@ -187,7 +212,19 @@ export const billingAPI = {
 // ─── Content ───────────────────────────────────────────────
 export const contentAPI = {
   lessons: (p?: any) => api.get("/content/lessons", { params: p }),
+  myLessons: (p?: any) => api.get("/content/lessons/mine", { params: p }),
   getLesson: (id: string) => api.get(`/content/lessons/${id}`),
+  createLesson: (d: any) => api.post("/content/lessons", d),
+  updateLesson: (id: string, d: any) => api.put(`/content/lessons/${id}`, d),
+  publishLesson: (id: string, publish: boolean) =>
+    api.put(`/content/lessons/${id}/publish`, { publish }),
+  deleteLesson: (id: string) => api.delete(`/content/lessons/${id}`),
+  completeLesson: (id: string) => api.post(`/content/lessons/${id}/complete`),
+  myProgress: () => api.get("/content/my-progress"),
+  courses: (p?: any) => api.get("/content/courses", { params: p }),
+  createCourse: (d: any) => api.post("/content/courses", d),
+  addToCourse: (courseId: string, lessonId: string, orderIndex?: number) =>
+    api.post(`/content/courses/${courseId}/lessons`, { lessonId, orderIndex }),
 };
 
 // ─── Anti-Cheat ────────────────────────────────────────────
@@ -225,50 +262,6 @@ export const messagesAPI = {
   contacts: () => api.get("/messages/contacts/list"),
 };
 
-// ─── Extended Users ────────────────────────────────────────
-export const extUsersAPI = {
-  ratingHistory: (id: string, limit = 30) =>
-    api.get(`/users/${id}/rating-history`, { params: { limit } }),
-  myChildren: () => api.get("/users/my-children"),
-  attendance: (id: string) => api.get(`/users/${id}/attendance`),
-  leaderboard: (academyId: string) =>
-    api.get(`/users/leaderboard/${academyId}`),
-  childrenProgress: (parentId: string) =>
-    api.get(`/users/children/${parentId}/progress`),
-  updateStatus: (id: string, active: boolean) =>
-    api.put(`/users/${id}/status`, { active }),
-};
-
-// ─── Extended Content ──────────────────────────────────────
-export const contentExtAPI = {
-  lessons: (p?: any) => api.get("/content/lessons", { params: p }),
-  myLessons: (p?: any) => api.get("/content/lessons/mine", { params: p }),
-  getLesson: (id: string) => api.get(`/content/lessons/${id}`),
-  createLesson: (d: any) => api.post("/content/lessons", d),
-  updateLesson: (id: string, d: any) => api.put(`/content/lessons/${id}`, d),
-  publishLesson: (id: string, publish: boolean) =>
-    api.put(`/content/lessons/${id}/publish`, { publish }),
-  deleteLesson: (id: string) => api.delete(`/content/lessons/${id}`),
-  completeLesson: (id: string) => api.post(`/content/lessons/${id}/complete`),
-  myProgress: () => api.get("/content/my-progress"),
-  courses: (p?: any) => api.get("/content/courses", { params: p }),
-  createCourse: (d: any) => api.post("/content/courses", d),
-  addToCourse: (courseId: string, lessonId: string, orderIndex?: number) =>
-    api.post(`/content/courses/${courseId}/lessons`, { lessonId, orderIndex }),
-};
-
-// ─── Extended Billing ──────────────────────────────────────
-export const billingExtAPI = {
-  subscription: (academyId: string) =>
-    api.get(`/billing/subscription/${academyId}`),
-  myInvoices: () => api.get("/billing/my-invoices"),
-  invoices: (academyId: string) => api.get(`/billing/invoices/${academyId}`),
-  changePlan: (academyId: string, planName: string) =>
-    api.post("/billing/change-plan", { academyId, planName }),
-  createOrder: (data: any) => api.post("/billing/razorpay/create-order", data),
-  verifyPayment: (data: any) => api.post("/billing/razorpay/verify", data),
-};
-
 // ─── Activity Logs ──────────────────────────────────────────
 export const activityLogsAPI = {
   list: (p?: any) => api.get("/activity-logs", { params: p }),
@@ -290,4 +283,10 @@ export const studentReportsAPI = {
     api.get(`/student-reports/${studentId}/data`, { params: { periodDays } }),
   pdfUrl: (studentId: string, periodDays = 90) =>
     `${api.defaults.baseURL}/student-reports/${studentId}/pdf?periodDays=${periodDays}`,
+};
+
+// ─── Parent API ──────────────────────────────────────────
+export const parentAPI = {
+  children: () => api.get("/users/my-children"),
+  childAttendance: (id: string) => api.get(`/users/${id}/attendance`),
 };

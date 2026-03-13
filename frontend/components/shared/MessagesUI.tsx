@@ -206,7 +206,7 @@ export default function MessagesUI() {
       }
     };
     const onOnline = ({ userId }: any) =>
-      setOnlineUsers((prev) => new Set([...prev, userId]));
+      setOnlineUsers((prev) => new Set([...Array.from(prev), userId]));
     const onOffline = ({ userId }: any) =>
       setOnlineUsers((prev) => {
         const s = new Set(prev);

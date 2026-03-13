@@ -4,28 +4,36 @@
 
 /* ─── CSS Variables ────────────────────────────────────────── */
 :root {
-  --bg: #f7f4ef;
+  /* Core Colors - Inspired by premium chess materials (wood, marble, gold) */
+  --bg: #faf9f6;
   --bg-card: #ffffff;
-  --bg-subtle: #f0ebe3;
-  --bg-hover: #ede6dc;
-  --border: #e2d8ce;
-  --border-md: #d4c8bc;
-  --amber: #c8961e;
-  --amber-light: #f5c842;
-  --amber-dim: rgba(200, 150, 30, 0.12);
-  --text: #1c1107;
-  --text-mid: #5c4a38;
-  --text-muted: #9b8575;
-  --success: #15803d;
-  --warning: #b45309;
-  --error: #dc2626;
-  --info: #1d4ed8;
-  --shadow-sm:
-    0 1px 3px rgba(100, 70, 40, 0.08), 0 1px 2px rgba(100, 70, 40, 0.06);
-  --shadow-md:
-    0 4px 12px rgba(100, 70, 40, 0.1), 0 2px 6px rgba(100, 70, 40, 0.06);
-  --shadow-lg:
-    0 12px 32px rgba(100, 70, 40, 0.12), 0 4px 12px rgba(100, 70, 40, 0.08);
+  --bg-subtle: #f5f2ed;
+  --bg-hover: #f0ede6;
+  --border: #e8e1d9;
+  --border-md: #dcd3c8;
+  
+  /* Primary - Deep Amber/Gold */
+  --amber: #b48a2e;
+  --amber-light: #d4ae5e;
+  --amber-dim: rgba(180, 138, 46, 0.1);
+  
+  /* Neutral Text */
+  --text: #1a1510;
+  --text-mid: #4a423a;
+  --text-muted: #8c837a;
+  
+  /* Functional */
+  --success: #1a7f37;
+  --warning: #9a6700;
+  --error: #cf222e;
+  --info: #0969da;
+  
+  /* Shadows - More subtle and layered */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 12px 24px -4px rgba(0, 0, 0, 0.12), 0 4px 8px -4px rgba(0, 0, 0, 0.08);
+  --shadow-xl: 0 20px 32px -8px rgba(0, 0, 0, 0.15);
+  --shadow-premium: 0 10px 40px -10px rgba(0, 0, 0, 0.12), 0 4px 12px -4px rgba(0, 0, 0, 0.08);
 }
 
 /* ─── Base ──────────────────────────────────────────────────── */
@@ -95,7 +103,7 @@ body {
   .btn-primary {
     @apply inline-flex items-center justify-center gap-2 font-semibold
            px-5 py-2.5 rounded-xl text-sm
-           active:scale-[0.97] transition-all duration-150
+           active:scale-[0.97] transition-all duration-300
            disabled:opacity-40 disabled:cursor-not-allowed;
     background: var(--amber);
     color: #fff;
@@ -105,13 +113,14 @@ body {
   }
   .btn-primary:hover:not(:disabled) {
     background: #d4a820;
-    box-shadow: 0 3px 10px rgba(200, 150, 30, 0.35);
+    box-shadow: 0 4px 12px rgba(200, 150, 30, 0.4);
+    transform: translateY(-1px);
   }
 
   .btn-secondary {
     @apply inline-flex items-center justify-center gap-2 font-medium
            px-5 py-2.5 rounded-xl text-sm
-           active:scale-[0.97] transition-all duration-150
+           active:scale-[0.97] transition-all duration-300
            disabled:opacity-40 disabled:cursor-not-allowed;
     background: var(--bg-card);
     color: var(--text-mid);
@@ -122,6 +131,8 @@ body {
     background: var(--bg-subtle);
     border-color: #bfb0a4;
     color: var(--text);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
   }
 
   .btn-danger {
@@ -307,6 +318,21 @@ body {
   .progress-fill {
     @apply h-full rounded-full transition-all duration-500;
     background: var(--amber);
+  }
+
+  /* ── Glassmorphism ─────────────────────────────────────────── */
+  .glass {
+    background: rgba(255, 252, 248, 0.7);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(232, 225, 217, 0.5);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+  }
+  .glass-dark {
+    background: rgba(26, 21, 16, 0.7);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
   }
 
   /* ── Modal overlay ─────────────────────────────────────────── */

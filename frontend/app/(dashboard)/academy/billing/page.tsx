@@ -7,7 +7,7 @@ import {
   useInvoices,
   useSubscription,
 } from "@/lib/hooks";
-import { billingExtAPI } from "@/lib/api";
+import { billingAPI } from "@/lib/api";
 import { PageLoading } from "@/components/shared/States";
 import toast from "react-hot-toast";
 import {
@@ -110,7 +110,7 @@ export default function BillingPage() {
     setProcessingPlan(planName);
     try {
       // 1. Create order on server
-      const orderRes = await billingExtAPI.createOrder({
+      const orderRes = await billingAPI.createOrder({
         planName,
         academyId: user.academy_id,
       });
@@ -148,7 +148,7 @@ export default function BillingPage() {
         handler: async (response: any) => {
           // 3. Verify payment on server
           try {
-            await billingExtAPI.verifyPayment({
+            await billingAPI.verifyPayment({
               razorpay_order_id: response.razorpay_order_id,
               razorpay_payment_id: response.razorpay_payment_id,
               razorpay_signature: response.razorpay_signature,

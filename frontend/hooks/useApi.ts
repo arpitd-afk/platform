@@ -396,9 +396,10 @@ export function useSubmitAssignment() {
 export function useGradeAssignment() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) => assignmentsAPI.grade(id, data),
-    onSuccess: (_, { id }) => {
-      qc.invalidateQueries({ queryKey: KEYS.assignmentSubmissions(id) })
+    mutationFn: ({ assignmentId, submissionId, data }: { assignmentId: string; submissionId: string; data: any }) => 
+      assignmentsAPI.grade(assignmentId, submissionId, data),
+    onSuccess: (_, { assignmentId }) => {
+      qc.invalidateQueries({ queryKey: KEYS.assignmentSubmissions(assignmentId) })
       toast.success('Grade saved')
     },
   })

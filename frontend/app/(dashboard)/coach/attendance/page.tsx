@@ -48,7 +48,7 @@ function AttendanceModal({ cls, onClose }: { cls: any; onClose: () => void }) {
   const save = useMutation({
     mutationFn: () =>
       api.post(`/classrooms/${cls.id}/attendance/bulk`, {
-        present: [...marked],
+        present: Array.from(marked),
         absent: enrolled
           .map((s: any) => s.id)
           .filter((id: string) => !marked.has(id)),
