@@ -1,9 +1,9 @@
 {
+  "/_not-found/page": "app/_not-found/page.js",
   "/(auth)/login/page": "app/(auth)/login/page.js",
-  "/(dashboard)/super-admin/users/page": "app/(dashboard)/super-admin/users/page.js",
-  "/(dashboard)/super-admin/analytics/page": "app/(dashboard)/super-admin/analytics/page.js",
-  "/(dashboard)/super-admin/billing/page": "app/(dashboard)/super-admin/billing/page.js",
+  "/(dashboard)/super-admin/page": "app/(dashboard)/super-admin/page.js",
   "/(dashboard)/super-admin/anticheat/page": "app/(dashboard)/super-admin/anticheat/page.js",
-  "/(dashboard)/super-admin/logs/page": "app/(dashboard)/super-admin/logs/page.js",
-  "/(dashboard)/super-admin/settings/page": "app/(dashboard)/super-admin/settings/page.js"
+  "/(dashboard)/profile/page": "app/(dashboard)/profile/page.js",
+  "/(dashboard)/super-admin/settings/page": "app/(dashboard)/super-admin/settings/page.js",
+  "/(dashboard)/super-admin/academies/page": "app/(dashboard)/super-admin/academies/page.js"
 }

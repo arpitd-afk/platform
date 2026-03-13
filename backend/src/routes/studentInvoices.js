@@ -135,6 +135,29 @@ router.patch('/:id', authorize('academy_admin', 'super_admin'), async (req, res)
             `UPDATE student_invoices SET ${sets.join(',')} WHERE id=$1 AND academy_id=$2`,
             params
         );
+
+        if (status === 'paid') {
+            try {
+                const invRes = await query('SELECT student_id, total, invoice_number FROM student_invoices WHERE id=$1', [req.params.id]);
+                if (invRes.rows.length) {
+                    const { student_id, total, invoice_number } = invRes.rows[0];
+                    // Notify student
+                    await query(
+                        'INSERT INTO notifications (id, user_id, type, title, body, created_at) VALUES (gen_random_uuid(), $1, \'payment\', $2, $3, NOW())',
+                        [student_id, `Payment Success: ${invoice_number}`, `Your payment of ${total} for invoice ${invoice_number} has been received.`]
+                    );
+                    // Notify parent if exists
+                    const parents = await query('SELECT parent_id FROM parent_student WHERE student_id=$1', [student_id]);
+                    for (const p of parents.rows) {
+                        await query(
+                            'INSERT INTO notifications (id, user_id, type, title, body, created_at) VALUES (gen_random_uuid(), $1, \'payment\', $2, $3, NOW())',
+                            [p.parent_id, `Payment Success: ${invoice_number}`, `Payment for your child's invoice ${invoice_number} (${total}) has been received.`]
+                        );
+                    }
+                }
+            } catch (err) { console.error('[Invoice Notif Error]', err.message); }
+        }
+
         res.json({ message: 'Updated' });
     } catch (e) { res.status(500).json({ message: 'Failed' }); }
 });

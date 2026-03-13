@@ -113,6 +113,19 @@ router.post('/reports', authorize('super_admin', 'academy_admin', 'coach'), asyn
       ip: req.ip
     });
 
+    // Persistent notifications to admins
+    try {
+      const admins = await query('SELECT id FROM users WHERE academy_id=$1 AND role IN (\'academy_admin\', \'super_admin\')', [req.user.academyId]);
+      const reportedUser = await query('SELECT name FROM users WHERE id=$1', [reportedUserId]);
+      const reportedName = reportedUser.rows[0]?.name || 'Unknown User';
+      for (const admin of admins.rows) {
+        await query(
+          'INSERT INTO notifications (id, user_id, type, title, body, created_at) VALUES (gen_random_uuid(), $1, \'system\', $2, $3, NOW())',
+          [admin.id, 'New Cheat Report', `A cheat report has been filed against ${reportedName}.`]
+        );
+      }
+    } catch (err) { console.error('[Anticheat Notif Error]', err.message); }
+
     res.status(201).json({ message: 'Cheat report filed', id });
   } catch (e) {
     console.error('[anticheat]', e.message);

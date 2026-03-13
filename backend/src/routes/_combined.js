@@ -1,13 +1,13 @@
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const { query } = require('../config/database');
-const { authenticate } = require('../middleware/auth');
+const { authenticate, authorize } = require('../middleware/auth');
 
 // ─── USERS ROUTER ────────────────────────────────────────────────────────────
 const usersRouter = express.Router();
 usersRouter.use(authenticate);
 
-usersRouter.get('/', async (req, res) => {
+usersRouter.get('/', authorize('academy_admin', 'super_admin'), async (req, res) => {
   try {
     const { academyId, role, page = 1, limit = 50, status } = req.query;
     const offset = (Number(page) - 1) * Number(limit);
@@ -240,6 +240,25 @@ assignmentsRouter.post('/', async (req, res) => {
       'INSERT INTO assignments (id, coach_id, batch_id, student_id, title, description, type, due_date, content, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())',
       [id, req.user.id, batchId || null, studentId || null, title, description, type || 'puzzle', dueDate, JSON.stringify(content || {})]
     );
+
+    // Persistent notifications
+    try {
+      if (studentId) {
+        await query(
+          'INSERT INTO notifications (id, user_id, type, title, body, created_at) VALUES (gen_random_uuid(), $1, \'assignment\', $2, $3, NOW())',
+          [studentId, `New Assignment: ${title}`, description ? description.slice(0, 100) : 'Check your new assignment.']
+        );
+      } else if (batchId) {
+        const batchStudents = await query('SELECT student_id FROM batch_enrollments WHERE batch_id=$1 AND is_active=true', [batchId]);
+        for (const s of batchStudents.rows) {
+          await query(
+            'INSERT INTO notifications (id, user_id, type, title, body, created_at) VALUES (gen_random_uuid(), $1, \'assignment\', $2, $3, NOW())',
+            [s.student_id, `New Assignment: ${title}`, description ? description.slice(0, 100) : 'Check your new assignment.']
+          );
+        }
+      }
+    } catch (err) { console.error('[Assignments Notif Error]', err.message); }
+
     res.status(201).json({ message: 'Assignment created', id });
   } catch (e) { console.error("[_combined]", e.message); res.status(500).json({ message: 'Failed to create assignment' }); }
 });
@@ -397,7 +416,7 @@ contentRouter.get('/lessons', async (req, res) => {
 // ─── ANTI-CHEAT ROUTER ────────────────────────────────────────────────────────
 const anticheatRouter = express.Router();
 anticheatRouter.use(authenticate);
-anticheatRouter.get('/reports', async (req, res) => {
+anticheatRouter.get('/reports', authorize('super_admin'), async (req, res) => {
   try {
     const result = await query('SELECT cr.*, u.name as reported_name FROM cheat_reports cr LEFT JOIN users u ON cr.reported_user=u.id ORDER BY cr.created_at DESC LIMIT 50');
     res.json({ reports: result.rows });
@@ -413,7 +432,7 @@ billingRouter.get('/plans', async (req, res) => {
     res.json({ plans: result.rows });
   } catch (e) { console.error("[_combined]", e.message); res.status(500).json({ message: 'Failed to get plans' }); }
 });
-billingRouter.get('/invoices/:academyId', async (req, res) => {
+billingRouter.get('/invoices/:academyId', authorize('academy_admin', 'super_admin'), async (req, res) => {
   try {
     const result = await query('SELECT * FROM invoices WHERE academy_id=$1 ORDER BY created_at DESC', [req.params.academyId]);
     res.json({ invoices: result.rows });

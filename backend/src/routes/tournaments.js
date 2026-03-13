@@ -233,6 +233,21 @@ router.post('/:id/start', authorize('academy_admin', 'coach', 'super_admin'), as
            WHERE tournament_id=$1 AND player_id=$2`,
           [id, pair.white_id]
         );
+      } else {
+        // Pairing notification for white player
+        if (pair.white_id) {
+          await query(
+            'INSERT INTO notifications (id, user_id, type, title, body, created_at) VALUES (gen_random_uuid(), $1, \'tournament\', $2, $3, NOW())',
+            [pair.white_id, `New Match: ${t.name}`, `You are paired as White for Round 1 against ${pair.black_name || 'Opponent'}.`]
+          ).catch(() => {});
+        }
+        // Pairing notification for black player
+        if (pair.black_id) {
+          await query(
+            'INSERT INTO notifications (id, user_id, type, title, body, created_at) VALUES (gen_random_uuid(), $1, \'tournament\', $2, $3, NOW())',
+            [pair.black_id, `New Match: ${t.name}`, `You are paired as Black for Round 1 against ${pair.white_name || 'Opponent'}.`]
+          ).catch(() => {});
+        }
       }
     }
 
@@ -456,6 +471,20 @@ router.post('/:id/next-round', authorize('academy_admin', 'coach', 'super_admin'
            WHERE tournament_id=$1 AND player_id=$2`,
           [id, pair.white_id]
         );
+      } else {
+        // Pairing notification
+        if (pair.white_id) {
+          await query(
+            'INSERT INTO notifications (id, user_id, type, title, body, created_at) VALUES (gen_random_uuid(), $1, \'tournament\', $2, $3, NOW())',
+            [pair.white_id, `New Match: ${t.name}`, `Round ${nextRound} pairing is ready. You are playing as White.`]
+          ).catch(() => {});
+        }
+        if (pair.black_id) {
+          await query(
+            'INSERT INTO notifications (id, user_id, type, title, body, created_at) VALUES (gen_random_uuid(), $1, \'tournament\', $2, $3, NOW())',
+            [pair.black_id, `New Match: ${t.name}`, `Round ${nextRound} pairing is ready. You are playing as Black.`]
+          ).catch(() => {});
+        }
       }
     }
 

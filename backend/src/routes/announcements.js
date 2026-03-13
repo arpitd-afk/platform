@@ -72,12 +72,19 @@ router.post('/', authorize('coach', 'academy_admin', 'super_admin'), async (req,
         try {
             const { sendAnnouncementEmail } = require('../services/emailService');
             const audience = await query(
-                `SELECT email, name FROM users
+                `SELECT id, email, name FROM users
          WHERE academy_id=$1 AND is_active=true
            AND (${targetRole ? 'role=$2' : '$2::text IS NULL'})`,
                 [req.user.academyId, targetRole]
             );
             for (const u of audience.rows) {
+                // Persistent notification
+                await query(
+                    `INSERT INTO notifications (id, user_id, type, title, body, created_at)
+                     VALUES (gen_random_uuid(), $1, 'system', $2, $3, NOW())`,
+                    [u.id, `New Announcement: ${title}`, body.slice(0, 100) + (body.length > 100 ? '...' : '')]
+                ).catch(err => console.error('[Announcements Notif Error]', err.message));
+
                 sendAnnouncementEmail({ to: u.email, name: u.name, title, body, authorName: req.user.name }).catch(() => { });
             }
         } catch (_) { }

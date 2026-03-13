@@ -7,7 +7,7 @@ const router = express.Router();
 router.use(authenticate);
 
 // GET /api/batches
-router.get('/', async (req, res) => {
+router.get('/', authorize('academy_admin', 'super_admin', 'coach'), async (req, res) => {
   try {
     const { academyId, coachId, level } = req.query;
     const conditions = ['1=1'];
