@@ -22,6 +22,7 @@ import {
   Edit3,
   IndianRupee,
 } from "lucide-react";
+import Modal from "@/components/shared/Modal";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface LineItem {
@@ -128,270 +129,242 @@ function CreateInvoiceModal({ students, batches, onClose, onCreated }: any) {
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: "rgba(0,0,0,0.5)" }}
-    >
-      <div
-        className="card p-0 overflow-hidden w-full max-w-2xl max-h-[90vh] flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div
-          className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)]"
-          style={{ background: "var(--bg-subtle)" }}
-        >
-          <h3 className="font-semibold flex items-center gap-2">
-            <Receipt size={16} style={{ color: "var(--amber)" }} />
-            New Invoice
-          </h3>
-          <button onClick={onClose} className="btn-icon w-7 h-7">
-            <X size={14} />
-          </button>
+    <Modal title="New Invoice" onClose={onClose} size="lg">
+      <form onSubmit={handleSubmit} className="space-y-5">
+        {/* Student + Batch */}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="label">Student *</label>
+            <select
+              className="input"
+              value={form.studentId}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, studentId: e.target.value }))
+              }
+            >
+              <option value="">— Select student —</option>
+              {students.map((s: any) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="label">Batch (optional)</label>
+            <select
+              className="input"
+              value={form.batchId}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, batchId: e.target.value }))
+              }
+            >
+              <option value="">— None —</option>
+              {batches.map((b: any) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="overflow-y-auto flex-1">
-          <div className="p-5 space-y-5">
-            {/* Student + Batch */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="label">Student *</label>
-                <select
-                  className="input"
-                  value={form.studentId}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, studentId: e.target.value }))
-                  }
-                >
-                  <option value="">— Select student —</option>
-                  {students.map((s: any) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="label">Batch (optional)</label>
-                <select
-                  className="input"
-                  value={form.batchId}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, batchId: e.target.value }))
-                  }
-                >
-                  <option value="">— None —</option>
-                  {batches.map((b: any) => (
-                    <option key={b.id} value={b.id}>
-                      {b.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* Period + Due date */}
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <label className="label">Period From</label>
-                <input
-                  type="date"
-                  className="input"
-                  value={form.periodFrom}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, periodFrom: e.target.value }))
-                  }
-                />
-              </div>
-              <div>
-                <label className="label">Period To</label>
-                <input
-                  type="date"
-                  className="input"
-                  value={form.periodTo}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, periodTo: e.target.value }))
-                  }
-                />
-              </div>
-              <div>
-                <label className="label">Due Date</label>
-                <input
-                  type="date"
-                  className="input"
-                  value={form.dueDate}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, dueDate: e.target.value }))
-                  }
-                />
-              </div>
-            </div>
-
-            {/* Line Items */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="label mb-0">Line Items</label>
-                <button
-                  type="button"
-                  onClick={addItem}
-                  className="btn-secondary text-xs py-1 px-2 flex items-center gap-1"
-                >
-                  <Plus size={11} />
-                  Add item
-                </button>
-              </div>
-              <div className="space-y-2">
-                <div
-                  className="grid grid-cols-[1fr_80px_100px_32px] gap-2 text-xs font-semibold px-1"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  <span>Description</span>
-                  <span className="text-center">Qty</span>
-                  <span className="text-center">Rate (₹)</span>
-                  <span />
-                </div>
-                {items.map((item, i) => (
-                  <div
-                    key={i}
-                    className="grid grid-cols-[1fr_80px_100px_32px] gap-2 items-center"
-                  >
-                    <input
-                      className="input text-sm py-1.5"
-                      placeholder="e.g. Monthly Fee"
-                      value={item.description}
-                      onChange={(e) =>
-                        updateItem(i, "description", e.target.value)
-                      }
-                    />
-                    <input
-                      type="number"
-                      className="input text-sm py-1.5 text-center"
-                      min={1}
-                      value={item.qty}
-                      onChange={(e) =>
-                        updateItem(i, "qty", parseInt(e.target.value) || 1)
-                      }
-                    />
-                    <input
-                      type="number"
-                      className="input text-sm py-1.5 text-center"
-                      min={0}
-                      value={item.rate}
-                      onChange={(e) =>
-                        updateItem(i, "rate", parseFloat(e.target.value) || 0)
-                      }
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeItem(i)}
-                      disabled={items.length === 1}
-                      className="btn-icon w-7 h-7 text-red-400 disabled:opacity-30"
-                    >
-                      <Trash2 size={12} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Totals */}
-            <div
-              className="rounded-xl p-4 space-y-2"
-              style={{
-                background: "var(--bg-subtle)",
-                border: "1px solid var(--border)",
-              }}
-            >
-              <div className="flex justify-between text-sm">
-                <span style={{ color: "var(--text-muted)" }}>Subtotal</span>
-                <span className="font-medium">{fmt(subtotal)}</span>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <div className="flex items-center gap-2">
-                  <span style={{ color: "var(--text-muted)" }}>GST</span>
-                  <input
-                    type="number"
-                    className="input py-0.5 px-2 text-xs w-16 text-center"
-                    min={0}
-                    max={30}
-                    value={form.taxRate}
-                    onChange={(e) =>
-                      setForm((f) => ({
-                        ...f,
-                        taxRate: parseFloat(e.target.value) || 0,
-                      }))
-                    }
-                  />
-                  <span
-                    className="text-xs"
-                    style={{ color: "var(--text-muted)" }}
-                  >
-                    %
-                  </span>
-                </div>
-                <span className="font-medium">{fmt(tax)}</span>
-              </div>
-              <div className="flex justify-between text-base font-bold border-t border-[var(--border)] pt-2">
-                <span>Total</span>
-                <span style={{ color: "var(--amber)" }}>{fmt(total)}</span>
-              </div>
-            </div>
-
-            {/* Notes + Status */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="label">Notes (optional)</label>
-                <textarea
-                  className="input resize-none"
-                  rows={2}
-                  value={form.notes}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, notes: e.target.value }))
-                  }
-                  placeholder="Payment instructions, bank details…"
-                />
-              </div>
-              <div>
-                <label className="label">Initial Status</label>
-                <select
-                  className="input"
-                  value={form.status}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, status: e.target.value }))
-                  }
-                >
-                  <option value="draft">Draft</option>
-                  <option value="sent">Send immediately</option>
-                </select>
-              </div>
-            </div>
+        {/* Period + Due date */}
+        <div className="grid grid-cols-3 gap-4">
+          <div>
+            <label className="label">Period From</label>
+            <input
+              type="date"
+              className="input"
+              value={form.periodFrom}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, periodFrom: e.target.value }))
+              }
+            />
           </div>
+          <div>
+            <label className="label">Period To</label>
+            <input
+              type="date"
+              className="input"
+              value={form.periodTo}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, periodTo: e.target.value }))
+              }
+            />
+          </div>
+          <div>
+            <label className="label">Due Date</label>
+            <input
+              type="date"
+              className="input"
+              value={form.dueDate}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, dueDate: e.target.value }))
+              }
+            />
+          </div>
+        </div>
 
-          <div className="flex gap-3 px-5 pb-5">
+        {/* Line Items */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <label className="label mb-0">Line Items</label>
             <button
               type="button"
-              onClick={onClose}
-              className="btn-secondary flex-1"
+              onClick={addItem}
+              className="btn-secondary text-xs py-1 px-2 flex items-center gap-1"
             >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="btn-primary flex-1 flex items-center justify-center gap-2"
-            >
-              {saving ? (
-                "Creating…"
-              ) : (
-                <>
-                  <Receipt size={14} />
-                  Create Invoice
-                </>
-              )}
+              <Plus size={11} />
+              Add item
             </button>
           </div>
-        </form>
-      </div>
-    </div>
+          <div className="space-y-2">
+            <div
+              className="grid grid-cols-[1fr_80px_100px_32px] gap-2 text-xs font-semibold px-1"
+              style={{ color: "var(--text-muted)" }}
+            >
+              <span>Description</span>
+              <span className="text-center">Qty</span>
+              <span className="text-center">Rate (₹)</span>
+              <span />
+            </div>
+            {items.map((item, i) => (
+              <div
+                key={i}
+                className="grid grid-cols-[1fr_80px_100px_32px] gap-2 items-center"
+              >
+                <input
+                  className="input text-sm py-1.5"
+                  placeholder="e.g. Monthly Fee"
+                  value={item.description}
+                  onChange={(e) => updateItem(i, "description", e.target.value)}
+                />
+                <input
+                  type="number"
+                  className="input text-sm py-1.5 text-center"
+                  min={1}
+                  value={item.qty}
+                  onChange={(e) =>
+                    updateItem(i, "qty", parseInt(e.target.value) || 1)
+                  }
+                />
+                <input
+                  type="number"
+                  className="input text-sm py-1.5 text-center"
+                  min={0}
+                  value={item.rate}
+                  onChange={(e) =>
+                    updateItem(i, "rate", parseFloat(e.target.value) || 0)
+                  }
+                />
+                <button
+                  type="button"
+                  onClick={() => removeItem(i)}
+                  disabled={items.length === 1}
+                  className="btn-icon w-7 h-7 text-red-400 disabled:opacity-30"
+                >
+                  <Trash2 size={12} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Totals */}
+        <div
+          className="rounded-xl p-4 space-y-2"
+          style={{
+            background: "var(--bg-subtle)",
+            border: "1px solid var(--border)",
+          }}
+        >
+          <div className="flex justify-between text-sm">
+            <span style={{ color: "var(--text-muted)" }}>Subtotal</span>
+            <span className="font-medium">{fmt(subtotal)}</span>
+          </div>
+          <div className="flex items-center justify-between text-sm">
+            <div className="flex items-center gap-2">
+              <span style={{ color: "var(--text-muted)" }}>GST</span>
+              <input
+                type="number"
+                className="input py-0.5 px-2 text-xs w-16 text-center"
+                min={0}
+                max={30}
+                value={form.taxRate}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    taxRate: parseFloat(e.target.value) || 0,
+                  }))
+                }
+              />
+              <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                %
+              </span>
+            </div>
+            <span className="font-medium">{fmt(tax)}</span>
+          </div>
+          <div className="flex justify-between text-base font-bold border-t border-[var(--border)] pt-2">
+            <span>Total</span>
+            <span style={{ color: "var(--amber)" }}>{fmt(total)}</span>
+          </div>
+        </div>
+
+        {/* Notes + Status */}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="label">Notes (optional)</label>
+            <textarea
+              className="input resize-none"
+              rows={2}
+              value={form.notes}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, notes: e.target.value }))
+              }
+              placeholder="Payment instructions, bank details…"
+            />
+          </div>
+          <div>
+            <label className="label">Initial Status</label>
+            <select
+              className="input"
+              value={form.status}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, status: e.target.value }))
+              }
+            >
+              <option value="draft">Draft</option>
+              <option value="sent">Send immediately</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="flex gap-3 pt-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="btn-secondary flex-1"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={saving}
+            className="btn-primary flex-1 flex items-center justify-center gap-2"
+          >
+            {saving ? (
+              "Creating…"
+            ) : (
+              <>
+                <Receipt size={14} />
+                Create Invoice
+              </>
+            )}
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
@@ -481,7 +454,7 @@ export default function InvoicesPage() {
 
   return (
     <div
-      className="space-y-5 animate-fade-in"
+      className="space-y-5 animate-fade-in pb-32"
       onClick={() => setActionMenu(null)}
     >
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -626,7 +599,7 @@ export default function InvoicesPage() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((inv: any) => (
+              {filtered.map((inv: any, idx: number) => (
                 <tr key={inv.id} className="tr">
                   <td className="td">
                     <span
@@ -719,7 +692,11 @@ export default function InvoicesPage() {
                         </button>
                         {actionMenu === inv.id && (
                           <div
-                            className="absolute right-0 top-8 z-20 card p-1 shadow-xl min-w-40"
+                            className={`absolute right-0 z-20 card p-1 shadow-xl min-w-40 ${
+                              idx >= filtered.length - 2 && filtered.length > 3
+                                ? "bottom-8"
+                                : "top-8"
+                            }`}
                             onClick={(e) => e.stopPropagation()}
                           >
                             {inv.status === "draft" && (
@@ -766,6 +743,20 @@ export default function InvoicesPage() {
                                 Mark Overdue
                               </button>
                             )}
+                            {inv.status === "cancelled" && (
+                              <button
+                                onClick={() =>
+                                  updateStatus.mutate({
+                                    id: inv.id,
+                                    status: "draft",
+                                  })
+                                }
+                                className="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-[var(--bg-hover)] flex items-center gap-2"
+                              >
+                                <Edit3 size={13} />
+                                Restore to Draft
+                              </button>
+                            )}
                             {inv.status !== "cancelled" && (
                               <button
                                 onClick={() =>
@@ -781,10 +772,14 @@ export default function InvoicesPage() {
                                 Cancel
                               </button>
                             )}
-                            {inv.status === "draft" && (
+                            {["draft", "cancelled"].includes(inv.status) && (
                               <button
                                 onClick={() => {
-                                  if (confirm("Delete this draft invoice?"))
+                                  if (
+                                    confirm(
+                                      `Delete this ${inv.status} invoice?`,
+                                    )
+                                  )
                                     deleteInv.mutate(inv.id);
                                 }}
                                 className="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-red-50 flex items-center gap-2 border-t border-[var(--border)] mt-1 pt-2"

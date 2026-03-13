@@ -1,9 +1,9 @@
 const { Pool } = require('pg');
 const logger = require('../utils/logger');
+const config = require('./index');
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL ||
-    'postgresql://neondb_owner:npg_g9vlqHMfc8Vs@ep-winter-mouse-airq3l4d-pooler.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require',
+  connectionString: config.databaseUrl,
   max: 10,                      // Neon pooler works best with lower max
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000,
@@ -18,7 +18,7 @@ async function connectDB() {
   const client = await pool.connect();
   try {
     await client.query('SELECT NOW()');
-    logger.info(`Connected to PostgreSQL at ${process.env.DB_HOST || 'localhost'}`);
+    logger.info('Connected to PostgreSQL');
   } finally {
     client.release();
   }

@@ -294,11 +294,9 @@ export default function TournamentDetailPage() {
   const { tournament: t, players = [] } = data;
   const pairings = pairingsData?.pairings || [];
   const byRound = pairingsData?.byRound || {};
-  const rounds = Object.keys(byRound)
-    .map(Number)
-    .sort((a, b) => a - b);
+  const rounds = Array.from({ length: t.current_round || 0 }, (_, i) => i + 1);
   const currentRound =
-    selectedRound ?? (rounds.length > 0 ? Math.max(...rounds) : 1);
+    selectedRound ?? (t.current_round > 0 ? t.current_round : 1);
 
   const isAdmin = ["academy_admin", "super_admin", "coach"].includes(
     user?.role || "",

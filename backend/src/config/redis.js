@@ -1,11 +1,12 @@
 const { createClient } = require('redis');
 const logger = require('../utils/logger');
+const config = require('./index');
 
 let redisClient;
 
 async function connectRedis() {
   redisClient = createClient({
-    url: process.env.REDIS_URL || 'redis://localhost:6379',
+    url: config.redisUrl,
     socket: {
       reconnectStrategy: (retries) => {
         if (retries > 10) return new Error('Redis: too many retries');
@@ -54,8 +55,18 @@ const cache = {
 
   async invalidatePattern(pattern) {
     try {
-      const keys = await redisClient.keys(pattern);
-      if (keys.length > 0) await redisClient.del(keys);
+      let cursor = '0';
+      do {
+        const reply = await redisClient.scan(cursor, {
+          MATCH: pattern,
+          COUNT: 100,
+        });
+        cursor = reply.cursor;
+        const keys = reply.keys;
+        if (keys.length > 0) {
+          await redisClient.del(keys);
+        }
+      } while (cursor !== '0');
     } catch (err) {
       logger.error('Cache invalidate error:', err);
     }

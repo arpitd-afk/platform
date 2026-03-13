@@ -1,118 +1,12 @@
-// ============================================================
-// tournaments.js  — Full Swiss/RR/Knockout tournament engine
-// ============================================================
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const { query } = require('../config/database');
 const { authenticate, authorize } = require('../middleware/auth');
+const TournamentService = require('../services/TournamentService');
+const { logActivity } = require('./activityLogs');
 
 const router = express.Router();
 router.use(authenticate);
-
-// ─── Swiss Pairing Algorithm ─────────────────────────────────
-function generateSwissPairings(players, existingMatches) {
-  // players: [{ player_id, score, rating }] sorted by score desc, rating desc
-  const played = new Set(
-    existingMatches.map(m => `${m.white_id}:${m.black_id}`)
-  );
-  const hasPlayed = (a, b) => played.has(`${a}:${b}`) || played.has(`${b}:${a}`);
-
-  const pool = [...players];
-  const pairs = [];
-  const paired = new Set();
-
-  // Assign bye first if odd number (lowest-ranked player who hasn't had bye)
-  let byePlayer = null;
-  if (pool.length % 2 === 1) {
-    for (let i = pool.length - 1; i >= 0; i--) {
-      if (!pool[i].had_bye) {
-        byePlayer = pool[i];
-        pool.splice(i, 1);
-        break;
-      }
-    }
-    if (!byePlayer) {
-      byePlayer = pool.pop(); // fallback: last player
-    }
-    pairs.push({ white_id: byePlayer.player_id, black_id: null, is_bye: true });
-    paired.add(byePlayer.player_id);
-  }
-
-  // Pair remaining players: top-down, skip already-played pairs
-  for (let i = 0; i < pool.length; i++) {
-    if (paired.has(pool[i].player_id)) continue;
-    for (let j = i + 1; j < pool.length; j++) {
-      if (paired.has(pool[j].player_id)) continue;
-      if (!hasPlayed(pool[i].player_id, pool[j].player_id)) {
-        // Alternate colors: player with fewer whites gets white
-        const [white, black] =
-          (pool[i].whites_count || 0) <= (pool[j].whites_count || 0)
-            ? [pool[i], pool[j]]
-            : [pool[j], pool[i]];
-        pairs.push({ white_id: white.player_id, black_id: black.player_id, is_bye: false });
-        paired.add(pool[i].player_id);
-        paired.add(pool[j].player_id);
-        break;
-      }
-    }
-    // If still unpaired (all opponents played), force-pair with next available
-    if (!paired.has(pool[i].player_id)) {
-      for (let j = i + 1; j < pool.length; j++) {
-        if (!paired.has(pool[j].player_id)) {
-          pairs.push({ white_id: pool[i].player_id, black_id: pool[j].player_id, is_bye: false });
-          paired.add(pool[i].player_id);
-          paired.add(pool[j].player_id);
-          break;
-        }
-      }
-    }
-  }
-  return pairs;
-}
-
-function generateRoundRobinPairings(playerIds, round, totalRounds) {
-  // Standard round-robin rotation algorithm
-  const n = playerIds.length % 2 === 0 ? playerIds.length : playerIds.length + 1;
-  const ids = [...playerIds];
-  if (ids.length % 2 === 1) ids.push(null); // bye slot
-
-  // Rotate for current round
-  const fixed = ids[0];
-  const rotating = ids.slice(1);
-  const rotated = [];
-  const shift = (round - 1) % (n - 1);
-  for (let i = 0; i < rotating.length; i++) {
-    rotated.push(rotating[(i + shift) % rotating.length]);
-  }
-  const circle = [fixed, ...rotated];
-
-  const pairs = [];
-  for (let i = 0; i < n / 2; i++) {
-    const white = circle[i];
-    const black = circle[n - 1 - i];
-    if (white && black) {
-      pairs.push({ white_id: round % 2 === 0 ? black : white, black_id: round % 2 === 0 ? white : black, is_bye: false });
-    } else {
-      const byePlayer = white || black;
-      if (byePlayer) pairs.push({ white_id: byePlayer, black_id: null, is_bye: true });
-    }
-  }
-  return pairs;
-}
-
-function generateKnockoutPairings(playersSorted, round) {
-  // Round 1: seed 1 vs seed n, seed 2 vs seed n-1, etc.
-  if (round === 1) {
-    const pairs = [];
-    const n = playersSorted.length;
-    for (let i = 0; i < Math.floor(n / 2); i++) {
-      pairs.push({ white_id: playersSorted[i].player_id, black_id: playersSorted[n - 1 - i].player_id, is_bye: false });
-    }
-    if (n % 2 === 1) pairs.push({ white_id: playersSorted[Math.floor(n / 2)].player_id, black_id: null, is_bye: true });
-    return pairs;
-  }
-  return []; // Subsequent rounds: built from winners when results come in
-}
 
 // ─── GET / — List tournaments ────────────────────────────────
 router.get('/', async (req, res) => {
@@ -315,21 +209,22 @@ router.post('/:id/start', authorize('academy_admin', 'coach', 'super_admin'), as
     // Generate round 1 pairings based on format
     let pairs = [];
     if (t.format === 'swiss') {
-      pairs = generateSwissPairings(players, []);
+      pairs = TournamentService.generateSwissPairings(players, []);
     } else if (t.format === 'round_robin') {
-      pairs = generateRoundRobinPairings(players.map(p => p.player_id), 1, t.rounds);
+      pairs = TournamentService.generateRoundRobinPairings(players.map(p => p.player_id), 1, t.rounds);
     } else if (t.format === 'knockout') {
-      pairs = generateKnockoutPairings(players, 1);
+      pairs = TournamentService.generateKnockoutPairings(players, 1);
     } else {
-      pairs = generateSwissPairings(players, []); // arena fallback
+      pairs = TournamentService.generateSwissPairings(players, []); // arena fallback
     }
 
     // Insert matches
+    let boardNum = 1;
     for (const pair of pairs) {
       await query(
-        `INSERT INTO tournament_matches (id, tournament_id, round, white_id, black_id, is_bye, status, created_at)
-         VALUES ($1,$2,1,$3,$4,$5,'pending',NOW())`,
-        [uuidv4(), id, pair.white_id, pair.black_id, pair.is_bye]
+        `INSERT INTO tournament_matches (id, tournament_id, round, board_number, white_id, black_id, is_bye, status, created_at)
+         VALUES ($1,$2,1,$3,$4,$5,$6,'pending',NOW())`,
+        [uuidv4(), id, boardNum++, pair.white_id, pair.black_id, pair.is_bye]
       );
       // Auto-score byes
       if (pair.is_bye) {
@@ -346,6 +241,8 @@ router.post('/:id/start', authorize('academy_admin', 'coach', 'super_admin'), as
       `UPDATE tournaments SET status='live', current_round=1 WHERE id=$1`,
       [id]
     );
+
+    logActivity({ actorId: req.user.id, actorName: req.user.name, actorRole: req.user.role, academyId: req.user.academyId, action: 'tournament_started', entityType: 'tournament', entityId: id, metadata: { playerCount: players.length, format: t.format }, ip: req.ip });
 
     res.json({ message: 'Tournament started! Round 1 pairings generated.', pairs: pairs.length });
   } catch (e) {
@@ -367,7 +264,7 @@ router.get('/:id/pairings', async (req, res) => {
         tm.*,
         wu.name as white_name, wu.rating as white_rating, wu.avatar as white_avatar,
         bu.name as black_name, bu.rating as black_rating, bu.avatar as black_avatar,
-        ws.score as white_score, bs.score as black_score
+        ws.score as white_total_score, bs.score as black_total_score
        FROM tournament_matches tm
        LEFT JOIN users wu ON tm.white_id = wu.id
        LEFT JOIN users bu ON tm.black_id = bu.id
@@ -387,7 +284,7 @@ router.get('/:id/pairings', async (req, res) => {
 
     res.json({ pairings: result.rows, byRound });
   } catch (e) {
-    console.error(e);
+    console.error('[pairings-fetch]', e);
     res.status(500).json({ message: 'Failed to get pairings' });
   }
 });
@@ -411,7 +308,7 @@ router.put('/:id/matches/:matchId/result', authorize('academy_admin', 'coach', '
 
     if (m.status === 'completed') {
       // Rollback previous scores before updating
-      await rollbackMatchScores(m);
+      await TournamentService.rollbackMatchScores(m);
     }
 
     // Determine scores
@@ -452,10 +349,12 @@ router.put('/:id/matches/:matchId/result', authorize('academy_admin', 'coach', '
     }
 
     // Recalculate Buchholz tiebreak
-    await recalcBuchholz(req.params.id);
+    await TournamentService.recalcBuchholz(req.params.id);
 
     // Re-rank standings
-    await rerank(req.params.id);
+    await TournamentService.rerank(req.params.id);
+
+    logActivity({ actorId: req.user.id, actorName: req.user.name, actorRole: req.user.role, academyId: req.user.academyId, action: 'match_result_set', entityType: 'tournament_match', entityId: matchId, metadata: { tournamentId: req.params.id, result, whiteScore, blackScore }, ip: req.ip });
 
     res.json({ message: 'Result recorded', whiteScore, blackScore });
   } catch (e) {
@@ -469,19 +368,22 @@ router.post('/:id/next-round', authorize('academy_admin', 'coach', 'super_admin'
   try {
     const { id } = req.params;
 
-    const [tRes, currentMatchesRes, standingsRes, allMatchesRes] = await Promise.all([
-      query('SELECT * FROM tournaments WHERE id=$1', [id]),
+    const tRes = await query('SELECT * FROM tournaments WHERE id=$1', [id]);
+    if (!tRes.rows.length) return res.status(404).json({ message: 'Tournament not found' });
+    const t = tRes.rows[0];
+
+    const [currentMatchesRes, standingsRes, allMatchesRes] = await Promise.all([
       query(
         `SELECT * FROM tournament_matches
-         WHERE tournament_id=$1 AND round=(SELECT MAX(round) FROM tournament_matches WHERE tournament_id=$1)`,
-        [id]
+         WHERE tournament_id=$1 AND round=$2`,
+        [id, t.current_round]
       ),
       query(
         `SELECT ts.player_id, ts.score, ts.wins, ts.draws, ts.losses, u.rating,
           (SELECT COUNT(*) FROM tournament_matches tm2
-           WHERE tm2.tournament_id=$1 AND tm2.white_player_id=ts.player_id) as whites_count,
+           WHERE tm2.tournament_id=$1 AND tm2.white_id=ts.player_id) as whites_count,
           (SELECT COUNT(*) FROM tournament_matches tm3
-           WHERE tm3.tournament_id=$1 AND (tm3.white_player_id=ts.player_id OR tm3.black_player_id=ts.player_id) AND tm3.is_bye=true) as had_bye_count
+           WHERE tm3.tournament_id=$1 AND (tm3.white_id=ts.player_id OR tm3.black_id=ts.player_id) AND tm3.is_bye=true) as had_bye_count
          FROM tournament_standings ts
          JOIN users u ON ts.player_id = u.id
          WHERE ts.tournament_id=$1
@@ -494,9 +396,6 @@ router.post('/:id/next-round', authorize('academy_admin', 'coach', 'super_admin'
         [id]
       )
     ]);
-
-    if (!tRes.rows.length) return res.status(404).json({ message: 'Tournament not found' });
-    const t = tRes.rows[0];
 
     // Check all current round matches are done
     const pending = currentMatchesRes.rows.filter(m => m.status !== 'completed');
@@ -523,9 +422,9 @@ router.post('/:id/next-round', authorize('academy_admin', 'coach', 'super_admin'
 
     let pairs = [];
     if (t.format === 'swiss') {
-      pairs = generateSwissPairings(players, allMatchesRes.rows);
+      pairs = TournamentService.generateSwissPairings(players, allMatchesRes.rows);
     } else if (t.format === 'round_robin') {
-      pairs = generateRoundRobinPairings(players.map(p => p.player_id), nextRound, t.rounds);
+      pairs = TournamentService.generateRoundRobinPairings(players.map(p => p.player_id), nextRound, t.rounds);
     } else if (t.format === 'knockout') {
       // Only winners advance
       const winners = currentMatchesRes.rows
@@ -533,7 +432,14 @@ router.post('/:id/next-round', authorize('academy_admin', 'coach', 'super_admin'
         .map(m => m.result === 'white' ? m.white_id : m.result === 'black' ? m.black_id : m.white_id); // draw: white advances
       const byePlayers = currentMatchesRes.rows.filter(m => m.is_bye).map(m => m.white_id);
       const advancers = [...winners, ...byePlayers].map(pid => players.find(p => p.player_id === pid)).filter(Boolean);
-      pairs = generateKnockoutPairings(advancers, nextRound);
+      pairs = TournamentService.generateKnockoutPairings(advancers, nextRound);
+    } else {
+      // Arena or other formats: use Swiss as fallback for discrete round generation
+      pairs = TournamentService.generateSwissPairings(players, allMatchesRes.rows);
+    }
+
+    if (pairs.length === 0) {
+      return res.status(400).json({ message: 'Could not generate any pairings. Check players list.' });
     }
 
     // Insert new matches
@@ -553,11 +459,20 @@ router.post('/:id/next-round', authorize('academy_admin', 'coach', 'super_admin'
       }
     }
 
+    console.log(`[Tournament] Generated ${pairs.length} pairings for Round ${nextRound} in Tournament ${id}`);
+
     await query(`UPDATE tournaments SET current_round=$1 WHERE id=$2`, [nextRound, id]);
 
-    res.json({ message: `Round ${nextRound} pairings generated!`, round: nextRound, pairs: pairs.length });
+    logActivity({ actorId: req.user.id, actorName: req.user.name, actorRole: req.user.role, academyId: req.user.academyId, action: 'tournament_next_round', entityType: 'tournament', entityId: id, metadata: { round: nextRound, pairsCount: pairs.length }, ip: req.ip });
+
+    res.json({
+      message: `Round ${nextRound} pairings generated!`,
+      round: nextRound,
+      pairsCount: pairs.length,
+      pairings: pairs
+    });
   } catch (e) {
-    console.error(e);
+    console.error('[next-round-error]', e);
     res.status(500).json({ message: 'Failed to generate next round' });
   }
 });
@@ -583,76 +498,11 @@ router.get('/:id/standings', async (req, res) => {
 router.post('/:id/cancel', authorize('academy_admin', 'coach', 'super_admin'), async (req, res) => {
   try {
     await query(`UPDATE tournaments SET status='cancelled' WHERE id=$1`, [req.params.id]);
+    logActivity({ actorId: req.user.id, actorName: req.user.name, actorRole: req.user.role, academyId: req.user.academyId, action: 'tournament_cancelled', entityType: 'tournament', entityId: req.params.id, ip: req.ip });
     res.json({ message: 'Tournament cancelled' });
   } catch (e) {
     res.status(500).json({ message: 'Failed', _route: 'tournaments' });
   }
 });
-
-// ─── Helpers ─────────────────────────────────────────────────
-async function rollbackMatchScores(m) {
-  if (!m.white_id || m.is_bye) return;
-  const ws = parseFloat(m.white_score) || 0;
-  const bs = parseFloat(m.black_score) || 0;
-  if (m.white_id) {
-    await query(
-      `UPDATE tournament_standings SET score = score - $1,
-        wins = GREATEST(wins - $2, 0), draws = GREATEST(draws - $3, 0), losses = GREATEST(losses - $4, 0)
-       WHERE tournament_id=$5 AND player_id=$6`,
-      [ws, ws === 1 ? 1 : 0, ws === 0.5 ? 1 : 0, ws === 0 ? 1 : 0, m.tournament_id, m.white_id]
-    );
-  }
-  if (m.black_id) {
-    await query(
-      `UPDATE tournament_standings SET score = score - $1,
-        wins = GREATEST(wins - $2, 0), draws = GREATEST(draws - $3, 0), losses = GREATEST(losses - $4, 0)
-       WHERE tournament_id=$5 AND player_id=$6`,
-      [bs, bs === 1 ? 1 : 0, bs === 0.5 ? 1 : 0, bs === 0 ? 1 : 0, m.tournament_id, m.black_id]
-    );
-  }
-}
-
-async function recalcBuchholz(tournamentId) {
-  // Buchholz = sum of opponents' scores
-  const matches = await query(
-    `SELECT white_id, black_id FROM tournament_matches WHERE tournament_id=$1 AND is_bye=false AND status='completed'`,
-    [tournamentId]
-  );
-  const scores = await query(
-    `SELECT player_id, score FROM tournament_standings WHERE tournament_id=$1`,
-    [tournamentId]
-  );
-  const scoreMap = {};
-  for (const s of scores.rows) scoreMap[s.player_id] = parseFloat(s.score);
-
-  // Calculate buchholz per player
-  const buchholz = {};
-  for (const m of matches.rows) {
-    if (m.white_id && m.black_id) {
-      buchholz[m.white_id] = (buchholz[m.white_id] || 0) + (scoreMap[m.black_id] || 0);
-      buchholz[m.black_id] = (buchholz[m.black_id] || 0) + (scoreMap[m.white_id] || 0);
-    }
-  }
-  for (const [pid, buch] of Object.entries(buchholz)) {
-    await query(
-      `UPDATE tournament_standings SET tiebreak1=$1 WHERE tournament_id=$2 AND player_id=$3`,
-      [buch, tournamentId, pid]
-    );
-  }
-}
-
-async function rerank(tournamentId) {
-  const standings = await query(
-    `SELECT player_id FROM tournament_standings
-     WHERE tournament_id=$1 ORDER BY score DESC, tiebreak1 DESC`,
-    [tournamentId]
-  );
-  for (let i = 0; i < standings.rows.length; i++) {
-    await query(
-      `UPDATE tournament_standings SET rank=$1 WHERE tournament_id=$2 AND player_id=$3`,
-      [i + 1, tournamentId, standings.rows[i].player_id]
-    );
-  }
-}
 
 module.exports = router;

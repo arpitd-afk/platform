@@ -311,16 +311,105 @@ body {
 
   /* ── Modal overlay ─────────────────────────────────────────── */
   .modal-overlay {
-    @apply fixed inset-0 z-50 flex items-center justify-center p-4;
-    background: rgba(28, 17, 7, 0.45);
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: flex;
+    align-items: flex-end;        /* mobile: bottom sheet */
+    justify-content: center;
+    background: rgba(28, 17, 7, 0.5);
     backdrop-filter: blur(4px);
-    padding-top: 160px;
+    -webkit-backdrop-filter: blur(4px);
+    padding: 0;
+  }
+
+  .modal-box {
+    position: relative;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 20px 20px 0 0;  /* mobile: rounded top only */
+    box-shadow: var(--shadow-lg);
+    max-height: 92vh;
+    overflow-y: auto;
+    animation: modalSlideUp 0.25s ease-out both;
+  }
+
+  .modal-drag-handle {
+    display: flex;
+    justify-content: center;
+    padding-top: 8px;
+    padding-bottom: 0;
+  }
+  .modal-drag-pill {
+    width: 36px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--border-md);
+  }
+
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .modal-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding-right: 8px;
+  }
+  .modal-body {
+    padding: 16px;
+  }
+
+  /* Size classes — on mobile everything is full width */
+  .modal-sm, .modal-md, .modal-lg, .modal-xl {
+    width: 100%;
+  }
+
+  @keyframes modalSlideUp {
+    from { opacity: 0; transform: translateY(40px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+}
+
+/* ── Tablet & Desktop modal overrides (640px+) ────────────── */
+@media (min-width: 640px) {
+  .modal-overlay {
+    align-items: center !important;
+    padding: 24px !important;
   }
   .modal-box {
-    @apply relative w-full card animate-slide-up;
-    box-shadow: var(--shadow-lg);
-    max-height: 90vh;
-    overflow-y: auto;
+    border-radius: 14px !important;
+    max-height: calc(100vh - 48px);
+    margin: auto;
+    animation: modalFadeScale 0.2s ease-out both;
+  }
+  .modal-drag-handle {
+    display: none !important;
+  }
+  .modal-header {
+    padding: 20px 24px 16px;
+  }
+  .modal-title {
+    font-size: 16px;
+  }
+  .modal-body {
+    padding: 24px;
+  }
+  .modal-sm { max-width: 384px; }
+  .modal-md { max-width: 512px; }
+  .modal-lg { max-width: 672px; }
+  .modal-xl { max-width: 896px; }
+
+  @keyframes modalFadeScale {
+    from { opacity: 0; transform: scale(0.96) translateY(8px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
   }
 }
 

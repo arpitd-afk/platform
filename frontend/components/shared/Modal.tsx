@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
 interface ModalProps {
@@ -7,8 +8,15 @@ interface ModalProps {
   onClose: () => void;
   children: React.ReactNode;
   size?: "sm" | "md" | "lg" | "xl";
-  maxWidth?: string; // legacy compat
+  maxWidth?: string;
 }
+
+const SIZE_CLASSES: Record<string, string> = {
+  sm: "modal-sm",
+  md: "modal-md",
+  lg: "modal-lg",
+  xl: "modal-xl",
+};
 
 export default function Modal({
   title,
@@ -31,42 +39,43 @@ export default function Modal({
     };
   }, [onClose]);
 
-  const sizeClass =
-    maxWidth ||
-    {
-      sm: "max-w-sm",
-      md: "max-w-lg",
-      lg: "max-w-2xl",
-      xl: "max-w-4xl",
-    }[size];
+  const sizeClass = maxWidth || SIZE_CLASSES[size] || SIZE_CLASSES.lg;
 
   const handleOverlayClick = (e: React.MouseEvent) => {
     if (e.target === overlayRef.current) onClose();
   };
 
-  return (
+  const modal = (
     <div
       ref={overlayRef}
       onClick={handleOverlayClick}
       className="modal-overlay"
     >
       <div className={`modal-box ${sizeClass} w-full`}>
+        {/* Mobile drag handle */}
+        <div className="modal-drag-handle">
+          <div className="modal-drag-pill" />
+        </div>
+
+        {/* Header */}
         <div
-          className="flex items-center justify-between p-6 pb-4 border-b"
+          className="modal-header"
           style={{ borderColor: "var(--border)" }}
         >
-          <h2
-            className="text-base font-semibold"
-            style={{ color: "var(--text)" }}
-          >
-            {title}
-          </h2>
-          <button onClick={onClose} className="btn-icon w-8 h-8 rounded-lg">
+          <h2 className="modal-title">{title}</h2>
+          <button onClick={onClose} className="btn-icon w-8 h-8 rounded-lg flex-shrink-0">
             <X size={16} />
           </button>
         </div>
-        <div className="p-6">{children}</div>
+
+        {/* Content */}
+        <div className="modal-body">{children}</div>
       </div>
     </div>
   );
+
+  if (typeof window !== "undefined") {
+    return createPortal(modal, document.body);
+  }
+  return modal;
 }

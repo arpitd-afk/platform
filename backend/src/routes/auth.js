@@ -8,10 +8,12 @@ const { cache } = require('../config/redis');
 const { authenticate } = require('../middleware/auth');
 const logger = require('../utils/logger');
 const { sendPasswordResetEmail } = require('../services/emailService');
+const config = require('../config');
+const { logActivity } = require('./activityLogs');
 
 const router = express.Router();
 
-const JWT_SECRET = process.env.JWT_SECRET || 'chess-academy-secret-change-in-production';
+const JWT_SECRET = config.jwtSecret;
 
 const generateToken = (user, expiresIn = '7d') =>
   jwt.sign(
@@ -106,6 +108,8 @@ router.post('/register', [
 
     logger.info(`New user registered: ${email} (${role})`);
 
+    logActivity({ actorId: userId, actorName: name, actorRole: role, academyId, action: 'user_registered', entityType: 'user', entityId: userId, metadata: { email, role }, ip: req.ip });
+
     res.status(201).json({ message: 'Account created successfully', token, user: formatUser(user) });
   } catch (error) {
     if (error.message === 'Subdomain already taken') {
@@ -162,6 +166,8 @@ router.post('/login', [
 
     const token = generateToken(user);
     logger.info(`User logged in: ${email}`);
+
+    logActivity({ actorId: user.id, actorName: user.name, actorRole: user.role, academyId: user.academy_id, action: 'user_login', entityType: 'user', entityId: user.id, metadata: { email }, ip: req.ip });
 
     res.json({ message: 'Login successful', token, user: formatUser(user) });
   } catch (error) {
@@ -261,6 +267,7 @@ router.post('/reset-password', [
       'UPDATE users SET password_hash = $1, reset_token = NULL, reset_token_expires = NULL WHERE id = $2',
       [hashedPassword, result.rows[0].id]
     );
+    logActivity({ actorId: result.rows[0].id, actorName: null, actorRole: null, academyId: null, action: 'password_reset', entityType: 'user', entityId: result.rows[0].id, ip: req.ip });
     res.json({ message: 'Password reset successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Password reset failed' });

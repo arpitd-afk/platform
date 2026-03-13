@@ -2,8 +2,12 @@ const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const { query } = require('../config/database');
 const { authenticate, authorize } = require('../middleware/auth');
-const { billingRouter } = require('./_combined');
-const router = billingRouter;
+const BillingService = require('../services/BillingService');
+const crypto = require('crypto');
+const config = require('../config');
+const { logActivity } = require('./activityLogs');
+
+const router = express.Router();
 
 // GET /api/billing/subscription/:academyId
 router.get('/subscription/:academyId', async (req, res) => {
@@ -21,7 +25,7 @@ router.get('/subscription/:academyId', async (req, res) => {
 });
 
 // GET /api/billing/my-invoices  (parent)
-router.get('/my-invoices', async (req, res) => {
+router.get('/my-invoices', authenticate, async (req, res) => {
   try {
     const result = await query(
       `SELECT i.* FROM invoices i
@@ -38,10 +42,14 @@ router.get('/my-invoices', async (req, res) => {
 });
 
 // POST /api/billing/change-plan
-router.post('/change-plan', async (req, res) => {
+// POST /api/billing/upgrade (Alias for change-plan)
+router.post(['/upgrade', '/change-plan'], authenticate, async (req, res) => {
   try {
     if (!['super_admin', 'academy_admin'].includes(req.user.role)) return res.status(403).json({ message: 'Not authorized' });
-    const { academyId, planName } = req.body;
+    const { academyId } = req.body;
+    const planName = req.body.planName || req.body.plan;
+    if (!planName) return res.status(400).json({ message: 'Plan name is required' });
+    
     const plan = await query('SELECT * FROM subscription_plans WHERE name=$1', [planName]);
     if (!plan.rows.length) return res.status(404).json({ message: 'Plan not found' });
     await query(
@@ -49,28 +57,37 @@ router.post('/change-plan', async (req, res) => {
       [planName, plan.rows[0].max_students, academyId]
     );
     res.json({ message: 'Plan updated' });
+    logActivity({ actorId: req.user.id, actorName: req.user.name, actorRole: req.user.role, academyId, action: 'plan_changed', entityType: 'academy', entityId: academyId, metadata: { planName }, ip: req.ip });
   } catch (e) { console.error("[billing]", e.message); res.status(500).json({ message: 'Failed', _route: 'billing' }); }
 });
 
-
 // ─── Subscription Plan CRUD (Super Admin only) ───────────────────────────────
 
-// GET /api/billing/plans/all — all plans including inactive
-router.get('/plans/all', authorize('super_admin'), async (req, res) => {
+// GET /api/billing/plans (Public-ish)
+router.get('/plans', async (req, res) => {
+  try {
+    const result = await query('SELECT * FROM subscription_plans WHERE is_active=true ORDER BY price_monthly ASC NULLS LAST');
+    res.json({ plans: result.rows });
+  } catch (e) {
+    console.error('[billing plans]', e.message);
+    res.status(500).json({ message: 'Failed to fetch plans' });
+  }
+});
+
+router.get('/plans/all', authenticate, authorize('super_admin'), async (req, res) => {
   try {
     const result = await query('SELECT * FROM subscription_plans ORDER BY price_monthly ASC NULLS LAST');
     res.json({ plans: result.rows });
   } catch (e) { console.error('[billing]', e.message); res.status(500).json({ message: 'Failed' }); }
 });
 
-// POST /api/billing/plans — create plan
-router.post('/plans', authorize('super_admin'), async (req, res) => {
+router.post('/plans', authenticate, authorize('super_admin'), async (req, res) => {
   try {
     const { name, slug, price_monthly, price_yearly, max_students, max_coaches, features } = req.body;
     if (!name || !slug) return res.status(400).json({ message: 'Name and slug are required' });
     const existing = await query('SELECT id FROM subscription_plans WHERE slug=$1', [slug]);
     if (existing.rows.length) return res.status(409).json({ message: 'Slug already exists' });
-    const id = require('uuid').v4();
+    const id = uuidv4();
     await query(
       `INSERT INTO subscription_plans (id, name, slug, price_monthly, price_yearly, max_students, max_coaches, features, is_active, created_at)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,true,NOW())`,
@@ -80,8 +97,7 @@ router.post('/plans', authorize('super_admin'), async (req, res) => {
   } catch (e) { console.error('[billing]', e.message); res.status(500).json({ message: 'Failed' }); }
 });
 
-// PUT /api/billing/plans/:id — update plan
-router.put('/plans/:id', authorize('super_admin'), async (req, res) => {
+router.put('/plans/:id', authenticate, authorize('super_admin'), async (req, res) => {
   try {
     const { name, price_monthly, price_yearly, max_students, max_coaches, features, is_active } = req.body;
     const fields = []; const vals = [];
@@ -99,68 +115,34 @@ router.put('/plans/:id', authorize('super_admin'), async (req, res) => {
   } catch (e) { console.error('[billing]', e.message); res.status(500).json({ message: 'Failed' }); }
 });
 
-// DELETE /api/billing/plans/:id — deactivate plan (soft delete)
-router.delete('/plans/:id', authorize('super_admin'), async (req, res) => {
+router.delete('/plans/:id', authenticate, authorize('super_admin'), async (req, res) => {
   try {
     await query('UPDATE subscription_plans SET is_active=false WHERE id=$1', [req.params.id]);
     res.json({ message: 'Plan deactivated' });
   } catch (e) { console.error('[billing]', e.message); res.status(500).json({ message: 'Failed' }); }
 });
 
-module.exports = router;
+// ─── RAZORPAY INTEGRATION ───────────────────────────────
 
-// ─────────────────────────────────────────────────────────────────────────────
-// RAZORPAY PAYMENT INTEGRATION
-// ─────────────────────────────────────────────────────────────────────────────
-let Razorpay;
-try { Razorpay = require('razorpay'); } catch (e) { }
-
-const crypto = require('crypto');
-
-function getRazorpayInstance() {
-  if (!Razorpay) throw new Error('Razorpay module not installed');
-  const keyId = process.env.RAZORPAY_KEY_ID;
-  const keySecret = process.env.RAZORPAY_KEY_SECRET;
-  if (!keyId || !keySecret) throw new Error('Razorpay credentials not configured. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in .env');
-  return new Razorpay({ key_id: keyId, key_secret: keySecret });
-}
-
-// POST /api/billing/razorpay/create-order
-// Creates a Razorpay order for academy subscription
-router.post('/razorpay/create-order', authorize('academy_admin', 'super_admin'), async (req, res) => {
+router.post('/razorpay/create-order', authenticate, authorize('academy_admin', 'super_admin'), async (req, res) => {
   try {
     const { planName, academyId } = req.body;
-    const plan = await query('SELECT * FROM subscription_plans WHERE name=$1', [planName]);
-    if (!plan.rows.length) return res.status(404).json({ message: 'Plan not found' });
+    const { order, plan } = await BillingService.createSubscriptionOrder(academyId, planName);
 
-    const p = plan.rows[0];
-    if (!p.price_monthly || p.price_monthly <= 0) {
-      return res.status(400).json({ message: 'This plan requires manual setup. Contact support.' });
-    }
-
-    const instance = getRazorpayInstance();
-    const order = await instance.orders.create({
-      amount: Math.round(p.price_monthly * 100), // paise
-      currency: 'INR',
-      receipt: `acad_${academyId}_${Date.now()}`,
-      notes: { academyId, planName, plan_id: p.id }
-    });
-
-    // Store pending payment
     await query(
       `INSERT INTO invoices (id, academy_id, amount, status, description, razorpay_order_id, created_at)
        VALUES (gen_random_uuid(), $1, $2, 'pending', $3, $4, NOW())
        ON CONFLICT DO NOTHING`,
-      [academyId, p.price_monthly, `${p.name} Plan - Monthly`, order.id]
+      [academyId, plan.price_monthly, `${plan.name} Plan - Monthly`, order.id]
     );
 
     res.json({
       orderId: order.id,
       amount: order.amount,
       currency: order.currency,
-      keyId: process.env.RAZORPAY_KEY_ID,
-      planName: p.name,
-      planPrice: p.price_monthly,
+      keyId: config.razorpay.keyId,
+      planName: plan.name,
+      planPrice: plan.price_monthly,
     });
   } catch (e) {
     console.error('[Razorpay create-order]', e.message);
@@ -168,26 +150,14 @@ router.post('/razorpay/create-order', authorize('academy_admin', 'super_admin'),
   }
 });
 
-// POST /api/billing/razorpay/verify
-// Verifies Razorpay payment signature and activates subscription
-router.post('/razorpay/verify', authorize('academy_admin', 'super_admin'), async (req, res) => {
+router.post('/razorpay/verify', authenticate, authorize('academy_admin', 'super_admin'), async (req, res) => {
   try {
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature, academyId, planName } = req.body;
 
-    // Verify HMAC signature
-    const keySecret = process.env.RAZORPAY_KEY_SECRET;
-    if (!keySecret) return res.status(500).json({ message: 'Razorpay not configured' });
-
-    const expected = crypto
-      .createHmac('sha256', keySecret)
-      .update(`${razorpay_order_id}|${razorpay_payment_id}`)
-      .digest('hex');
-
-    if (expected !== razorpay_signature) {
+    if (!BillingService.verifyPayment(razorpay_order_id, razorpay_payment_id, razorpay_signature)) {
       return res.status(400).json({ message: 'Payment verification failed — invalid signature' });
     }
 
-    // Activate subscription
     const plan = await query('SELECT * FROM subscription_plans WHERE name=$1', [planName]);
     if (!plan.rows.length) return res.status(404).json({ message: 'Plan not found' });
     const p = plan.rows[0];
@@ -202,7 +172,6 @@ router.post('/razorpay/verify', authorize('academy_admin', 'super_admin'), async
       [planName, p.max_students, trialEndsAt.toISOString(), academyId]
     );
 
-    // Update invoice to paid
     await query(
       `UPDATE invoices
        SET status='paid', razorpay_payment_id=$1, paid_at=NOW()
@@ -210,7 +179,8 @@ router.post('/razorpay/verify', authorize('academy_admin', 'super_admin'), async
       [razorpay_payment_id, razorpay_order_id]
     );
 
-    console.log(`[Payment] Academy ${academyId} upgraded to ${planName} via ${razorpay_payment_id}`);
+    logActivity({ actorId: req.user.id, actorName: req.user.name, actorRole: req.user.role, academyId, action: 'payment_verified', entityType: 'academy', entityId: academyId, metadata: { planName, amount: p.price_monthly }, ip: req.ip });
+
     res.json({ message: 'Payment verified! Plan activated.', planName, activeUntil: trialEndsAt });
   } catch (e) {
     console.error('[Razorpay verify]', e.message);
@@ -218,11 +188,9 @@ router.post('/razorpay/verify', authorize('academy_admin', 'super_admin'), async
   }
 });
 
-// POST /api/billing/razorpay/webhook
-// Razorpay webhook for async events (payment.captured, subscription.charged etc.)
 router.post('/razorpay/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
   try {
-    const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
+    const webhookSecret = config.razorpay.webhookSecret;
     if (webhookSecret) {
       const signature = req.headers['x-razorpay-signature'];
       const expected = crypto
@@ -236,7 +204,6 @@ router.post('/razorpay/webhook', express.raw({ type: 'application/json' }), asyn
 
     const payload = JSON.parse(req.body.toString());
     const event = payload.event;
-    console.log(`[Razorpay Webhook] Event: ${event}`);
 
     if (event === 'payment.captured') {
       const payment = payload.payload.payment.entity;
@@ -272,8 +239,7 @@ router.post('/razorpay/webhook', express.raw({ type: 'application/json' }), asyn
   }
 });
 
-// GET /api/billing/invoices/:academyId (academy admin view)
-router.get('/invoices/:academyId', authorize('academy_admin', 'super_admin'), async (req, res) => {
+router.get('/invoices/:academyId', authenticate, authorize('academy_admin', 'super_admin'), async (req, res) => {
   try {
     const result = await query(
       `SELECT * FROM invoices WHERE academy_id=$1 ORDER BY created_at DESC LIMIT 50`,
@@ -285,8 +251,7 @@ router.get('/invoices/:academyId', authorize('academy_admin', 'super_admin'), as
   }
 });
 
-// GET /api/billing/invoice/:id/html — generate printable invoice HTML
-router.get('/invoice/:id/html', async (req, res) => {
+router.get('/invoice/:id/html', authenticate, async (req, res) => {
   try {
     const result = await query(
       `SELECT i.*, a.name as academy_name, a.subdomain, a.email as academy_email
@@ -298,108 +263,7 @@ router.get('/invoice/:id/html', async (req, res) => {
     if (!result.rows.length) return res.status(404).json({ message: 'Invoice not found' });
     const inv = result.rows[0];
 
-    const formatINR = (n) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: inv.currency || 'INR' }).format(n || 0);
-    const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : '—';
-
-    const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Invoice #${inv.id.slice(0, 8).toUpperCase()}</title>
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Segoe UI', Arial, sans-serif; color: #1C1107; background: #fff; padding: 48px; max-width: 760px; margin: auto; }
-  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px; padding-bottom: 24px; border-bottom: 2px solid #C8961E; }
-  .logo { font-size: 24px; font-weight: 800; color: #C8961E; letter-spacing: -0.5px; }
-  .logo span { color: #1C1107; }
-  .invoice-title { font-size: 32px; font-weight: 700; color: #1C1107; }
-  .invoice-meta { color: #9B8575; font-size: 13px; margin-top: 4px; }
-  .status-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
-    background: ${inv.status === 'paid' ? '#DCFCE7' : inv.status === 'failed' ? '#FEE2E2' : '#FEF3C7'};
-    color: ${inv.status === 'paid' ? '#15803D' : inv.status === 'failed' ? '#DC2626' : '#9A6E00'}; }
-  .section { margin: 28px 0; }
-  .section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9B8575; margin-bottom: 8px; }
-  .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
-  .info-block p { font-size: 14px; color: #5C4A38; line-height: 1.6; }
-  .info-block strong { font-weight: 600; color: #1C1107; }
-  table { width: 100%; border-collapse: collapse; margin: 16px 0; }
-  th { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #9B8575; text-align: left; padding: 8px 12px; background: #F7F4EF; }
-  td { padding: 12px; font-size: 14px; border-bottom: 1px solid #E2D8CE; }
-  .text-right { text-align: right; }
-  .totals { margin-top: 16px; }
-  .total-row { display: flex; justify-content: space-between; padding: 8px 0; font-size: 14px; color: #5C4A38; }
-  .total-row.grand { font-size: 18px; font-weight: 700; color: #1C1107; border-top: 2px solid #C8961E; padding-top: 12px; margin-top: 4px; }
-  .footer { margin-top: 48px; padding-top: 24px; border-top: 1px solid #E2D8CE; text-align: center; font-size: 12px; color: #9B8575; }
-  @media print {
-    body { padding: 24px; }
-    .no-print { display: none; }
-  }
-</style>
-</head>
-<body>
-<div class="no-print" style="position:fixed;top:16px;right:16px;z-index:10">
-  <button onclick="window.print()" style="background:#C8961E;color:white;border:none;padding:10px 20px;border-radius:8px;font-weight:600;cursor:pointer;font-size:14px;">⬇ Download / Print</button>
-</div>
-
-<div class="header">
-  <div>
-    <div class="logo">♔ Chess<span>Academy</span></div>
-    <div style="font-size:13px;color:#9B8575;margin-top:4px">${inv.academy_name || 'Chess Academy'}</div>
-  </div>
-  <div style="text-align:right">
-    <div class="invoice-title">INVOICE</div>
-    <div class="invoice-meta">#${inv.id.slice(0, 8).toUpperCase()}</div>
-    <div style="margin-top:8px"><span class="status-badge">${inv.status}</span></div>
-  </div>
-</div>
-
-<div class="info-grid">
-  <div class="info-block">
-    <div class="section-title">Billed To</div>
-    <p><strong>${inv.academy_name || 'N/A'}</strong><br>
-    ${inv.academy_email || ''}<br>
-    ${inv.gst_number ? 'GST: ' + inv.gst_number : ''}</p>
-  </div>
-  <div class="info-block">
-    <div class="section-title">Invoice Details</div>
-    <p><strong>Date:</strong> ${formatDate(inv.created_at)}<br>
-    <strong>Plan:</strong> ${inv.plan || 'Standard'}<br>
-    ${inv.razorpay_payment_id ? '<strong>Payment ID:</strong> ' + inv.razorpay_payment_id : ''}
-    ${inv.billing_period_start ? '<br><strong>Period:</strong> ' + formatDate(inv.billing_period_start) + ' – ' + formatDate(inv.billing_period_end) : ''}</p>
-  </div>
-</div>
-
-<div class="section">
-  <table>
-    <thead><tr>
-      <th>Description</th>
-      <th class="text-right">Amount</th>
-    </tr></thead>
-    <tbody>
-      <tr>
-        <td>${inv.description || inv.plan + ' Plan Subscription'}<br>
-          <span style="font-size:12px;color:#9B8575">${inv.billing_period_start ? formatDate(inv.billing_period_start) + ' to ' + formatDate(inv.billing_period_end) : ''}</span>
-        </td>
-        <td class="text-right">${formatINR(inv.amount - (inv.gst_amount || 0))}</td>
-      </tr>
-      ${inv.gst_amount ? `<tr><td>GST (18%)</td><td class="text-right">${formatINR(inv.gst_amount)}</td></tr>` : ''}
-    </tbody>
-  </table>
-  <div class="totals">
-    <div class="total-row grand">
-      <span>Total Amount</span>
-      <span>${formatINR(inv.amount)}</span>
-    </div>
-  </div>
-</div>
-
-<div class="footer">
-  <p>Thank you for your subscription to Chess Academy Pro.</p>
-  <p style="margin-top:4px">Questions? Contact us at support@chessacademy.pro</p>
-</div>
-</body>
-</html>`;
+    const html = BillingService.generateInvoiceHTML(inv);
 
     res.setHeader('Content-Type', 'text/html');
     res.send(html);
@@ -408,3 +272,5 @@ router.get('/invoice/:id/html', async (req, res) => {
     res.status(500).json({ message: 'Failed to generate invoice' });
   }
 });
+
+module.exports = router;

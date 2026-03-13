@@ -1,13 +1,10 @@
 const fs = require('fs');
 const path = require('path');
 const { Pool } = require('pg');
-require('dotenv').config();
-
-const DATABASE_URL = process.env.DATABASE_URL ||
-  'postgresql://neondb_owner:npg_g9vlqHMfc8Vs@ep-winter-mouse-airq3l4d-pooler.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require';
+const config = require('../config');
 
 const pool = new Pool({
-  connectionString: DATABASE_URL,
+  connectionString: config.databaseUrl,
   ssl: { rejectUnauthorized: false },
 });
 

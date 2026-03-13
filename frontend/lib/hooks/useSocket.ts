@@ -16,6 +16,18 @@ export function getSocket(token: string): Socket {
       reconnectionDelay: 1000,
       reconnectionAttempts: 5,
     });
+
+    globalSocket.on("connect", () => {
+      console.log("✅ Socket connected:", globalSocket?.id);
+    });
+
+    globalSocket.on("connect_error", (err) => {
+      console.error("❌ Socket connection error:", err.message);
+    });
+
+    globalSocket.on("disconnect", (reason) => {
+      console.warn("⚠️ Socket disconnected:", reason);
+    });
   }
   return globalSocket;
 }

@@ -1,21 +1,12 @@
 const { Pool } = require('pg');
+const { v4: uuidv4 } = require('uuid');
 const bcrypt = require('bcryptjs');
-require('dotenv').config();
-
-const DATABASE_URL = process.env.DATABASE_URL ||
-  'postgresql://neondb_owner:npg_g9vlqHMfc8Vs@ep-winter-mouse-airq3l4d-pooler.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require';
+const config = require('../config');
 
 const pool = new Pool({
-  connectionString: DATABASE_URL,
+  connectionString: config.databaseUrl,
   ssl: { rejectUnauthorized: false },
 });
-
-function uuid() {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
-    const r = Math.random() * 16 | 0;
-    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
-  });
-}
 
 async function seed() {
   const client = await pool.connect();

@@ -1,4 +1,3 @@
-require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -7,6 +6,7 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const compression = require('compression');
 
+const config = require('./config');
 const { connectDB } = require('./config/database');
 const { connectRedis } = require('./config/redis');
 const { initSocketHandlers } = require('./websocket/socketHandlers');
@@ -34,12 +34,12 @@ const app = express();
 const server = http.createServer(app);
 
 const io = new Server(server, {
-  cors: { origin: process.env.FRONTEND_URL || 'http://localhost:3000', methods: ['GET', 'POST'], credentials: true },
+  cors: { origin: config.frontendUrl, methods: ['GET', 'POST'], credentials: true },
   transports: ['websocket', 'polling'],
 });
 
 app.use(helmet({ contentSecurityPolicy: false }));
-app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:3000', credentials: true }));
+app.use(cors({ origin: config.frontendUrl, credentials: true }));
 app.use(compression());
 app.use(morgan('combined', { stream: { write: msg => logger.info(msg.trim()) } }));
 app.use(express.json({ limit: '10mb' }));
@@ -78,13 +78,13 @@ app.use(errorHandler);
 
 initSocketHandlers(io);
 
-const PORT = process.env.PORT || 5000;
+const PORT = config.port;
 async function start() {
   try {
     await connectDB(); logger.info('✅ Database connected');
     await connectRedis(); logger.info('✅ Redis connected');
     server.listen(PORT, () => {
-      logger.info(`🚀 Server running on port ${PORT}`);
+      logger.info(`🚀 Server running in ${config.nodeEnv} mode on port ${PORT}`);
       logger.info(`🔗 API: http://localhost:${PORT}/api`);
     });
   } catch (error) { logger.error('Failed to start server:', error); process.exit(1); }

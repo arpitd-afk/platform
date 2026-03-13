@@ -2,8 +2,9 @@ const jwt = require('jsonwebtoken');
 const { Chess } = require('chess.js');
 const { session } = require('../config/redis');
 const logger = require('../utils/logger');
+const config = require('../config');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'chess-academy-secret-change-in-production';
+const JWT_SECRET = config.jwtSecret;
 
 // Track active rooms
 const activeGames = new Map(); // gameId -> { white: socketId, black: socketId }
@@ -313,6 +314,10 @@ function initSocketHandlers(io) {
 
     // ── Online presence broadcast ──────────────────────────────────────────────
     socket.broadcast.emit('user:online', { userId });
+
+    socket.on('ping', () => {
+      socket.emit('pong', { timestamp: Date.now() });
+    });
 
     socket.on('disconnect', async (reason) => {
       logger.info(`Socket disconnected: ${socket.id} (user: ${userId}, reason: ${reason})`);

@@ -2,16 +2,14 @@
 // emailService.js — Nodemailer-backed email with HTML templates
 // ============================================================
 const nodemailer = require('nodemailer');
+const config = require('../config');
+const logger = require('../utils/logger');
 
 // ─── Transport factory (lazy-init, cached) ────────────────────
 let _transporter = null;
 
-function getTransporter() {
-    if (_transporter) return _transporter;
-
-    const host = process.env.SMTP_HOST;
-    const user = process.env.SMTP_USER;
-    const pass = process.env.SMTP_PASS;
+async function createTransporter() {
+    const { host, user, pass, port } = config.smtp;
 
     if (!host || !user || !pass) {
         // Fallback: log to console so devs see exactly what would have been sent
@@ -20,8 +18,8 @@ function getTransporter() {
 
     _transporter = nodemailer.createTransport({
         host,
-        port: parseInt(process.env.SMTP_PORT || '587'),
-        secure: parseInt(process.env.SMTP_PORT || '587') === 465,
+        port: parseInt(port || '587'),
+        secure: parseInt(port || '587') === 465,
         auth: { user, pass },
         tls: { rejectUnauthorized: false },
     });
@@ -98,7 +96,7 @@ async function sendWelcomeEmail({ to, name, role, academyName }) {
       <h1>Welcome to ${academyName || 'Chess Academy'}, ${name}! ♟</h1>
       <p>Your account has been created. You've been added as a <strong>${roleLabel}</strong>.</p>
       <p>Log in to access your dashboard, view your classes, and start learning.</p>
-      <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/login" class="btn">Go to Dashboard →</a>
+      <a href="${config.frontendUrl}/login" class="btn">Go to Dashboard →</a>
     `),
     });
 }
@@ -120,7 +118,7 @@ async function sendClassReminderEmail({ to, name, classTitle, scheduledAt, coach
         👨‍🏫 Coach: ${coachName}${batchName ? `<br>👥 Batch: ${batchName}` : ''}
       </div>
       <p>Hi ${name}, don't forget your upcoming class. Make sure you're ready 5 minutes early.</p>
-      <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/student/classes" class="btn">View Class →</a>
+      <a href="${config.frontendUrl}/student/classes" class="btn">View Class →</a>
     `),
     });
 }
@@ -141,7 +139,7 @@ async function sendAssignmentNotificationEmail({ to, name, assignmentTitle, dueD
         👨‍🏫 Set by: ${coachName}${passingScore ? `<br>🎯 Passing score: ${passingScore}/100` : ''}
       </div>
       <p>Hi ${name}, your coach has assigned new work for you. Submit before the deadline to get full marks.</p>
-      <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/student/assignments" class="btn">View Assignment →</a>
+      <a href="${config.frontendUrl}/student/assignments" class="btn">View Assignment →</a>
     `),
     });
 }
@@ -165,7 +163,7 @@ async function sendGradeNotificationEmail({ to, name, assignmentTitle, score, ma
         👨‍🏫 Graded by: ${coachName}
       </div>
       ${feedback ? `<p><strong>Coach's feedback:</strong><br><em>"${feedback}"</em></p>` : ''}
-      <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/student/assignments" class="btn">View Full Feedback →</a>
+      <a href="${config.frontendUrl}/student/assignments" class="btn">View Full Feedback →</a>
     `),
     });
 }
@@ -181,14 +179,14 @@ async function sendAnnouncementEmail({ to, name, title, body, authorName }) {
       <h1>${title}</h1>
       <p>${body.replace(/\n/g, '<br>')}</p>
       <p class="meta">Posted by ${authorName}</p>
-      <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard" class="btn">Go to Dashboard →</a>
+      <a href="${config.frontendUrl}/dashboard" class="btn">Go to Dashboard →</a>
     `),
     });
 }
 
 // Password reset
 async function sendPasswordResetEmail({ to, name, resetToken }) {
-    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password?token=${resetToken}`;
+    const resetUrl = `${config.frontendUrl}/reset-password?token=${resetToken}`;
     return sendEmail({
         to,
         subject: 'Reset your Chess Academy password',
@@ -218,7 +216,7 @@ async function sendTournamentStartEmail({ to, name, tournamentName, startTime, v
         🕐 ${timeStr}${venue ? `<br>📍 ${venue}` : ''}
       </div>
       <p>Hi ${name}, your tournament is about to begin. Good luck!</p>
-      <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/student/tournaments" class="btn">View Tournament →</a>
+      <a href="${config.frontendUrl}/student/tournaments" class="btn">View Tournament →</a>
     `),
     });
 }

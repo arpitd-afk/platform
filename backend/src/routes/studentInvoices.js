@@ -143,10 +143,10 @@ router.patch('/:id', authorize('academy_admin', 'super_admin'), async (req, res)
 router.delete('/:id', authorize('academy_admin', 'super_admin'), async (req, res) => {
     try {
         const r = await query(
-            "DELETE FROM student_invoices WHERE id=$1 AND academy_id=$2 AND status='draft' RETURNING id",
+            "DELETE FROM student_invoices WHERE id=$1 AND academy_id=$2 AND status IN ('draft', 'cancelled') RETURNING id",
             [req.params.id, req.user.academyId]
         );
-        if (!r.rows.length) return res.status(400).json({ message: 'Can only delete draft invoices' });
+        if (!r.rows.length) return res.status(400).json({ message: 'Can only delete draft or cancelled invoices' });
         res.json({ message: 'Deleted' });
     } catch (e) { res.status(500).json({ message: 'Failed' }); }
 });

@@ -6,6 +6,7 @@ const { cache } = require('../config/redis');
 const { authenticate, authorize } = require('../middleware/auth');
 const bcrypt = require('bcryptjs');
 const logger = require('../utils/logger');
+const { logActivity } = require('./activityLogs');
 
 const router = express.Router();
 router.use(authenticate);
@@ -162,6 +163,8 @@ router.post('/', authorize('super_admin'), [
       }
     }
 
+    logActivity({ actorId: req.user.id, actorName: req.user.name, actorRole: req.user.role, academyId: academyId, action: 'academy_created', entityType: 'academy', entityId: academyId, metadata: { name, subdomain, plan }, ip: req.ip });
+
     res.status(201).json({ message: 'Academy created', academyId, ownerId });
   } catch (error) {
     logger.error('Create academy error:', error);
@@ -200,6 +203,7 @@ router.post('/:id/suspend', authorize('super_admin'), async (req, res) => {
   try {
     await query('UPDATE academies SET is_active = false, updated_at = NOW() WHERE id = $1', [req.params.id]);
     await cache.del(`academy:${req.params.id}`);
+    logActivity({ actorId: req.user.id, actorName: req.user.name, actorRole: req.user.role, academyId: req.params.id, action: 'academy_suspended', entityType: 'academy', entityId: req.params.id, ip: req.ip });
     res.json({ message: 'Academy suspended' });
   } catch (error) {
     res.status(500).json({ message: 'Failed to suspend academy' });
@@ -211,6 +215,7 @@ router.post('/:id/activate', authorize('super_admin'), async (req, res) => {
   try {
     await query('UPDATE academies SET is_active = true, updated_at = NOW() WHERE id = $1', [req.params.id]);
     await cache.del(`academy:${req.params.id}`);
+    logActivity({ actorId: req.user.id, actorName: req.user.name, actorRole: req.user.role, academyId: req.params.id, action: 'academy_activated', entityType: 'academy', entityId: req.params.id, ip: req.ip });
     res.json({ message: 'Academy activated' });
   } catch (error) {
     res.status(500).json({ message: 'Failed to activate academy' });

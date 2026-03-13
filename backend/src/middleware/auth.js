@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
-const JWT_SECRET = process.env.JWT_SECRET || 'chess-academy-secret-change-in-production';
+const config = require('../config');
+const JWT_SECRET = config.jwtSecret;
 
 function authenticate(req, res, next) {
   const authHeader = req.headers.authorization;

@@ -9,16 +9,20 @@ usersRouter.use(authenticate);
 
 usersRouter.get('/', async (req, res) => {
   try {
-    const { academyId, role, page = 1, limit = 50 } = req.query;
+    const { academyId, role, page = 1, limit = 50, status } = req.query;
     const offset = (Number(page) - 1) * Number(limit);
-    const conditions = ['u.is_active = true'];
+    const conditions = [];
     const params = [];
 
-    // super_admin can see all users or filter by academyId
-    // other roles see only their own academy
+    // super_admin sees all users by default; others only see active
     if (req.user.role === 'super_admin') {
+      // Optional status filter for super_admin
+      if (status === 'active') conditions.push('u.is_active = true');
+      else if (status === 'inactive') conditions.push('u.is_active = false');
+      // else: no filter → show all
       if (academyId) { params.push(academyId); conditions.push(`u.academy_id = $${params.length}`); }
     } else {
+      conditions.push('u.is_active = true');
       const targetAcademy = academyId || req.user.academyId;
       if (targetAcademy) { params.push(targetAcademy); conditions.push(`u.academy_id = $${params.length}`); }
     }
@@ -37,7 +41,7 @@ usersRouter.get('/', async (req, res) => {
        LEFT JOIN users c ON c.id = u.assigned_coach_id
        LEFT JOIN batch_enrollments be ON be.student_id = u.id AND be.is_active = true
        LEFT JOIN batches b ON b.id = be.batch_id
-       WHERE ${conditions.join(' AND ')}
+       ${conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : ''}
        ORDER BY u.name ASC LIMIT $${params.length - 1} OFFSET $${params.length}`,
       params
     );

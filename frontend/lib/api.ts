@@ -194,6 +194,8 @@ export const contentAPI = {
 export const anticheatAPI = {
   reports: (p?: any) => api.get("/anticheat/reports", { params: p }),
   review: (id: string, d: any) => api.put(`/anticheat/reports/${id}`, d),
+  report: (d: any) => api.post("/anticheat/reports", d),
+  stats: () => api.get("/anticheat/stats"),
 };
 
 // ─── Announcements ──────────────────────────────────────────────

@@ -5,6 +5,7 @@ const { query, transaction } = require('../config/database');
 const { session, cache } = require('../config/redis');
 const { authenticate, authorize } = require('../middleware/auth');
 const logger = require('../utils/logger');
+const GameService = require('../services/GameService');
 
 const router = express.Router();
 router.use(authenticate);
@@ -43,34 +44,16 @@ router.post('/', async (req, res) => {
       }
     }
 
-    // Parse time control (e.g., "10+5" = 10 min + 5 sec increment)
-    const [baseMinutes, incrementSeconds] = timeControl.split('+').map(Number);
-    const baseTimeMs = (baseMinutes || 10) * 60 * 1000;
-    const incrementMs = (incrementSeconds || 0) * 1000;
-
-    const gameState = {
-      id: gameId,
-      fen: chess.fen(),
-      pgn: '',
-      whiteId,
-      blackId,
-      mode,
-      timeControl,
-      whiteTimeMs: baseTimeMs,
-      blackTimeMs: baseTimeMs,
-      incrementMs,
-      status: 'waiting',
-      moves: [],
-      createdAt: new Date().toISOString(),
-    };
+    const gameState = GameService.initializeGame(whiteId, blackId, timeControl, mode);
+    gameState.id = gameId; // Ensure we use the generated ID
 
     await transaction(async (client) => {
       await client.query(
         `INSERT INTO games (id, white_player_id, black_player_id, fen, pgn, status, time_control,
           white_time_ms, black_time_ms, increment_ms, mode, tournament_id, classroom_id, created_at)
          VALUES ($1,$2,$3,$4,$5,'waiting',$6,$7,$8,$9,$10,$11,$12,NOW())`,
-        [gameId, whiteId, blackId, chess.fen(), '', timeControl,
-          baseTimeMs, baseTimeMs, incrementMs, mode, tournamentId, classroomId]
+        [gameId, whiteId, blackId, gameState.fen, '', timeControl,
+          gameState.whiteTimeMs, gameState.blackTimeMs, gameState.incrementMs, mode, tournamentId, classroomId]
       );
     });
 
@@ -209,7 +192,7 @@ router.post('/:id/move', async (req, res) => {
       );
 
       if (gameOverResult) {
-        await updateRatings(gameState, gameOverResult);
+        await GameService.updateRatings(gameState.whiteId, gameState.blackId, gameOverResult);
       }
     }
 
@@ -310,36 +293,5 @@ router.get('/', async (req, res) => {
     res.status(500).json({ message: 'Failed to get games' });
   }
 });
-
-async function updateRatings(gameState, result) {
-  try {
-    const [white, black] = await Promise.all([
-      query('SELECT rating FROM users WHERE id = $1', [gameState.whiteId]),
-      query('SELECT rating FROM users WHERE id = $1', [gameState.blackId]),
-    ]);
-
-    const whiteRating = white.rows[0]?.rating || 1200;
-    const blackRating = black.rows[0]?.rating || 1200;
-    const K = 32;
-
-    const expectedWhite = 1 / (1 + Math.pow(10, (blackRating - whiteRating) / 400));
-    const expectedBlack = 1 - expectedWhite;
-
-    let whiteScore, blackScore;
-    if (result.winner === 'white') { whiteScore = 1; blackScore = 0; }
-    else if (result.winner === 'black') { whiteScore = 0; blackScore = 1; }
-    else { whiteScore = 0.5; blackScore = 0.5; }
-
-    const newWhiteRating = Math.round(whiteRating + K * (whiteScore - expectedWhite));
-    const newBlackRating = Math.round(blackRating + K * (blackScore - expectedBlack));
-
-    await Promise.all([
-      query('UPDATE users SET rating = $1 WHERE id = $2', [Math.max(100, newWhiteRating), gameState.whiteId]),
-      query('UPDATE users SET rating = $1 WHERE id = $2', [Math.max(100, newBlackRating), gameState.blackId]),
-    ]);
-  } catch (err) {
-    logger.error('Rating update error:', err);
-  }
-}
 
 module.exports = router;

@@ -1,15 +1,16 @@
 // middleware/errorHandler.js
-function errorHandler(err, req, res, next) {
-  const status = err.status || err.statusCode || 500;
-  const message = err.message || 'Internal server error';
+const config = require('../config');
 
-  if (process.env.NODE_ENV !== 'production') {
-    console.error(err);
+function errorHandler(err, req, res, next) {
+  const statusCode = err.status || 500;
+  
+  if (config.nodeEnv !== 'production') {
+    console.error(`[Error] ${req.method} ${req.url}`, err.message);
   }
 
-  res.status(status).json({
-    message,
-    ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
+  res.status(statusCode).json({
+    message: err.message || 'Internal Server Error',
+    ...(config.nodeEnv === 'development' && { stack: err.stack }),
   });
 }
 
