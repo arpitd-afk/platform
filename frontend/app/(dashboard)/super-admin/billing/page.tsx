@@ -1,8 +1,8 @@
 "use client";
 import { useState } from "react";
-import { useAcademies } from "@/lib/hooks";
+import { useAcademies } from "@/src/lib/hooks";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { billingAPI } from "@/lib/api";
+import { billingAPI } from "@/src/lib/api";
 import { PageLoading } from "@/components/shared/States";
 import Modal from "@/components/shared/Modal";
 import {

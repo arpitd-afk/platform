@@ -1,8 +1,8 @@
 "use client";
 import { useState, useEffect } from "react";
-import { useAnnouncements } from "@/lib/hooks";
-import { useAuth } from "@/lib/auth-context";
-import { getSocket } from "@/lib/hooks/useSocket";
+import { useAnnouncements } from "@/src/lib/hooks";
+import { useAuth } from "@/src/lib/auth-context";
+import { getSocket } from "@/src/lib/hooks/useSocket";
 import { Megaphone, Pin, ChevronDown, ChevronUp, X } from "lucide-react";
 
 const TARGET_LABELS: Record<string, string> = {

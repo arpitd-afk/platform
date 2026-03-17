@@ -1,7 +1,7 @@
 "use client";
 import AnnouncementBanner from "@/components/shared/AnnouncementBanner";
-import { useAuth } from "@/lib/auth-context";
-import { useUsers, useClassrooms, useAssignments } from "@/lib/hooks";
+import { useAuth } from "@/src/lib/auth-context";
+import { useUsers, useClassrooms, useAssignments } from "@/src/lib/hooks";
 import { PageLoading } from "@/components/shared/States";
 import Avatar from "@/components/shared/Avatar";
 import Link from "next/link";
@@ -26,7 +26,7 @@ export default function CoachDashboard() {
 
   const liveClass = classrooms.find((c: any) => c.status === "live");
   const upcoming = classrooms
-    .filter((c: any) => c.status === "scheduled")
+    .filter((c: any) => ["live", "scheduled"].includes(c.status))
     .slice(0, 3);
   const pendingReview = assignments.filter(
     (a: any) => a.status === "submitted",

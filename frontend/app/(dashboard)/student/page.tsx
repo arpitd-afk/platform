@@ -1,12 +1,12 @@
 "use client";
 import AnnouncementBanner from "@/components/shared/AnnouncementBanner";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth } from "@/src/lib/auth-context";
 import {
   useUserStats,
   useAssignments,
   useClassrooms,
   useTournaments,
-} from "@/lib/hooks";
+} from "@/src/lib/hooks";
 import { PageLoading } from "@/components/shared/States";
 import Avatar from "@/components/shared/Avatar";
 import Link from "next/link";
@@ -36,10 +36,10 @@ export default function StudentDashboard() {
   if (isLoading) return <PageLoading />;
 
   const upcomingClass = classrooms.find(
-    (c: any) => c.status === "live" || c.status === "scheduled",
+    (c: any) => ["live", "scheduled"].includes(c.status),
   );
   const pendingCount = assignments.filter(
-    (a: any) => a.status === "pending",
+    (a: any) => !a.submitted_at && (!a.due_date || new Date(a.due_date) > new Date()),
   ).length;
   const activeTournament = tournaments.find((t: any) => t.status === "active");
 
@@ -127,21 +127,21 @@ export default function StudentDashboard() {
         {[
           {
             label: "Games Played",
-            value: stats?.games_played || 0,
+            value: stats?.games?.total || 0,
             icon: Swords,
             color: "#1D4ED8",
           },
           {
             label: "Puzzles Solved",
-            value: stats?.puzzles_solved || 0,
+            value: stats?.puzzles?.correct || 0,
             icon: Puzzle,
             color: "#15803D",
           },
           {
             label: "Win Rate",
-            value: stats?.win_rate
-              ? `${Math.round(stats.win_rate * 100)}%`
-              : "—",
+            value: stats?.games?.total > 0
+              ? `${Math.round((stats.games.wins / (stats.games.total || 1)) * 100)}%`
+              : "0%",
             icon: TrendingUp,
             color: "#9A6E00",
           },
@@ -331,7 +331,15 @@ export default function StudentDashboard() {
                         : "No deadline"}
                     </div>
                   </div>
-                  <span className="badge badge-orange text-xs">Pending</span>
+                  {(() => {
+                    const isOverdue = !a.submitted_at && a.due_date && new Date(a.due_date) < new Date();
+                    const isSubmitted = !!a.submitted_at;
+                    const isGraded = !!a.graded_at;
+                    if (isGraded) return <span className="badge badge-green text-xs">Graded</span>;
+                    if (isSubmitted) return <span className="badge badge-blue text-xs">Submitted</span>;
+                    if (isOverdue) return <span className="badge badge-red text-xs">Overdue</span>;
+                    return <span className="badge badge-orange text-xs">Pending</span>;
+                  })()}
                 </div>
               ))}
             </div>

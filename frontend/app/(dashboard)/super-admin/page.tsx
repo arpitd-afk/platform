@@ -1,5 +1,5 @@
 'use client'
-import { useAcademies, useUsers } from '@/lib/hooks'
+import { useAcademies, useUsers } from '@/src/lib/hooks'
 import { PageLoading } from '@/components/shared/States'
 import Link from 'next/link'
 import { Building2, Users, Crown, TrendingUp, ArrowUpRight, CreditCard, Shield } from 'lucide-react'
@@ -18,8 +18,8 @@ export default function SuperAdminDashboard() {
 
   if (isLoading) return <PageLoading />
 
-  const active = academies.filter((a: any) => a.status === 'active').length
-  const suspended = academies.filter((a: any) => a.status === 'suspended').length
+  const active = academies.filter((a: any) => a.is_active).length
+  const suspended = academies.filter((a: any) => !a.is_active).length
   const enterprise = academies.filter((a: any) => a.plan === 'enterprise').length
   const totalStudents = users.filter((u: any) => u.role === 'student').length
 
@@ -106,7 +106,9 @@ export default function SuperAdminDashboard() {
                 <div className="font-medium text-sm truncate">{a.name}</div>
                 <div className="text-xs" style={{ color: 'var(--text-muted)' }}>{a.owner_email}</div>
               </div>
-              <span className={`badge text-xs capitalize ${a.status === 'active' ? 'badge-green' : 'badge-red'}`}>{a.status}</span>
+                <span className={`badge text-xs capitalize ${a.is_active ? 'badge-green' : 'badge-red'}`}>
+                  {a.is_active ? 'active' : 'suspended'}
+                </span>
               <span className="badge badge-gray text-xs capitalize">{a.plan}</span>
             </div>
           ))}

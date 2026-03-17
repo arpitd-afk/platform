@@ -1,8 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { gamesAPI } from "@/lib/api";
-import { useAuth } from "@/lib/auth-context";
+import { gamesAPI } from "@/src/lib/api";
+import { useAuth } from "@/src/lib/auth-context";
 import dynamic from "next/dynamic";
 import { Chess } from "chess.js";
 

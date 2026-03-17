@@ -1,6 +1,6 @@
 'use client'
-import { useAuth } from '@/lib/auth-context'
-import { useMyChildren, useChildrenProgress } from '@/lib/hooks'
+import { useAuth } from '@/src/lib/auth-context'
+import { useMyChildren, useChildrenProgress } from '@/src/lib/hooks'
 import { PageLoading, EmptyState } from '@/components/shared/States'
 import { TrendingUp } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'

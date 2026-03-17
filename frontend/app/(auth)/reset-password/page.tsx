@@ -11,7 +11,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import toast from "react-hot-toast";
-import { authAPI } from "@/lib/api";
+import { authAPI } from "@/src/lib/api";
 
 function ResetPasswordForm() {
   const params = useSearchParams();

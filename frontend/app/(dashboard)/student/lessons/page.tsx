@@ -1,11 +1,11 @@
 "use client";
 import { useState } from "react";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth } from "@/src/lib/auth-context";
 import {
   useLessons,
   useMyLessonProgress,
   useCompleteLesson,
-} from "@/lib/hooks";
+} from "@/src/lib/hooks";
 import { PageLoading, EmptyState } from "@/components/shared/States";
 import Modal from "@/components/shared/Modal";
 import {
@@ -141,11 +141,13 @@ function LessonModal({
   isDone,
   onComplete,
   completing,
+  onClose,
 }: {
   lesson: any;
   isDone: boolean;
   onComplete: () => void;
   completing: boolean;
+  onClose: () => void;
 }) {
   const cfg = LEVEL_CFG[lesson.level] || LEVEL_CFG.beginner;
 
@@ -156,7 +158,7 @@ function LessonModal({
   const ytId = lesson.video_url ? getYoutubeId(lesson.video_url) : null;
 
   return (
-    <Modal title={lesson.title} onClose={() => {}}>
+    <Modal title={lesson.title} onClose={onClose}>
       <div
         className="space-y-5"
         style={{
@@ -342,6 +344,7 @@ export default function LessonsPage() {
           isDone={completedIds.has(openLesson.id)}
           onComplete={handleComplete}
           completing={complete.isPending}
+          onClose={() => setOpenLesson(null)}
         />
       )}
 

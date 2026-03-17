@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import { useClassrooms, useCreateClassroom, useBatches } from '@/lib/hooks'
+import { useClassrooms, useCreateClassroom, useBatches } from '@/src/lib/hooks'
 import { PageLoading, EmptyState } from '@/components/shared/States'
 import Modal from '@/components/shared/Modal'
 import Link from 'next/link'
@@ -52,8 +52,8 @@ export default function CoachClassroomPage() {
               </div>
               <div>
                 <label className="label">Duration (minutes)</label>
-                <input type="number" min={15} max={180} step={15} value={form.durationMin}
-                  onChange={e => setForm({ ...form, durationMin: parseInt(e.target.value) })} className="input" />
+                <input type="number" min={15} max={180} step={15} value={form.durationMin || ''}
+                  onChange={e => setForm({ ...form, durationMin: parseInt(e.target.value) || 0 })} className="input" />
               </div>
             </div>
             <div>

@@ -2,9 +2,9 @@
 import { useState as _useState2 } from "react";
 import GameAnalysis from "@/components/shared/GameAnalysis";
 import { useState } from "react";
-import { useAuth } from "@/lib/auth-context";
-import { useGames } from "@/lib/hooks";
-import { gamesAPI } from "@/lib/api";
+import { useAuth } from "@/src/lib/auth-context";
+import { useGames } from "@/src/lib/hooks";
+import { gamesAPI } from "@/src/lib/api";
 import { PageLoading, EmptyState } from "@/components/shared/States";
 import Avatar from "@/components/shared/Avatar";
 import {
@@ -19,8 +19,9 @@ import {
   CheckCheck,
   Brain,
 } from "lucide-react";
-import Link from "next/link";
 import toast from "react-hot-toast";
+import Modal from "@/components/shared/Modal";
+import Link from "next/link";
 
 // ─── PGN builder (client-side fallback if server doesn't have pgn field) ──────
 function buildPgnHeader(game: any, user: any) {
@@ -128,147 +129,120 @@ function PgnModal({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: "rgba(0,0,0,0.5)" }}
-      onClick={onClose}
-    >
-      <div
-        className="card p-0 overflow-hidden w-full max-w-lg"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <Modal title="Export PGN" onClose={onClose} size="md">
+      <div className="space-y-4">
+        {/* Game summary */}
         <div
-          className="flex items-center justify-between px-5 py-4"
-          style={{
-            borderBottom: "1px solid var(--border)",
-            background: "var(--bg-subtle)",
-          }}
+          className="flex items-center gap-3 p-3 rounded-xl"
+          style={{ background: "var(--bg-subtle)" }}
         >
-          <h3
-            className="font-semibold text-sm"
-            style={{ color: "var(--text)" }}
-          >
-            Export PGN
-          </h3>
-          <button onClick={onClose} className="btn-icon w-7 h-7">
-            <X size={14} />
-          </button>
-        </div>
-
-        <div className="p-5 space-y-4">
-          {/* Game summary */}
-          <div
-            className="flex items-center gap-3 p-3 rounded-xl"
-            style={{ background: "var(--bg-subtle)" }}
-          >
-            <div className="text-center">
-              <div className="text-xs" style={{ color: "var(--text-muted)" }}>
-                ⬜ White
-              </div>
-              <div
-                className="font-semibold text-sm"
-                style={{ color: "var(--text)" }}
-              >
-                {game.white_player_id === user?.id
-                  ? user?.name
-                  : game.white_name || "?"}
-              </div>
+          <div className="text-center">
+            <div className="text-xs" style={{ color: "var(--text-muted)" }}>
+              ⬜ White
             </div>
             <div
-              className="flex-1 text-center font-bold text-sm"
-              style={{ color: "var(--text-muted)" }}
+              className="font-semibold text-sm"
+              style={{ color: "var(--text)" }}
             >
-              vs
-            </div>
-            <div className="text-center">
-              <div className="text-xs" style={{ color: "var(--text-muted)" }}>
-                ⬛ Black
-              </div>
-              <div
-                className="font-semibold text-sm"
-                style={{ color: "var(--text)" }}
-              >
-                {game.black_player_id === user?.id
-                  ? user?.name
-                  : game.black_name || "?"}
-              </div>
+              {game.white_player_id === user?.id
+                ? user?.name
+                : game.white_name || "?"}
             </div>
           </div>
-
-          {/* PGN text */}
-          {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2
-                size={22}
-                className="animate-spin"
-                style={{ color: "var(--amber)" }}
-              />
+          <div
+            className="flex-1 text-center font-bold text-sm"
+            style={{ color: "var(--text-muted)" }}
+          >
+            vs
+          </div>
+          <div className="text-center">
+            <div className="text-xs" style={{ color: "var(--text-muted)" }}>
+              ⬛ Black
             </div>
-          ) : (
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label
-                  className="text-xs font-semibold"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  PGN DATA
-                </label>
-                <button
-                  onClick={copyPgn}
-                  className="flex items-center gap-1 text-xs font-medium"
-                  style={{ color: copied ? "#15803D" : "var(--amber)" }}
-                >
-                  {copied ? (
-                    <>
-                      <CheckCheck size={11} />
-                      Copied!
-                    </>
-                  ) : (
-                    <>
-                      <Copy size={11} />
-                      Copy
-                    </>
-                  )}
-                </button>
-              </div>
-              <pre
-                className="p-3 rounded-xl text-[11px] overflow-auto max-h-56 leading-relaxed select-all"
-                style={{
-                  background: "#1e1e1e",
-                  color: "#d4d4d4",
-                  fontFamily: "var(--font-dm-mono)",
-                }}
-              >
-                {pgn}
-              </pre>
+            <div
+              className="font-semibold text-sm"
+              style={{ color: "var(--text)" }}
+            >
+              {game.black_player_id === user?.id
+                ? user?.name
+                : game.black_name || "?"}
             </div>
-          )}
-
-          {/* Actions */}
-          <div className="flex gap-3">
-            <button onClick={onClose} className="btn-secondary flex-1">
-              Close
-            </button>
-            <button
-              onClick={copyPgn}
-              disabled={!pgn}
-              className="btn-secondary flex-1 flex items-center justify-center gap-2"
-            >
-              {copied ? <CheckCheck size={14} /> : <Copy size={14} />}
-              {copied ? "Copied!" : "Copy PGN"}
-            </button>
-            <button
-              onClick={downloadPgn}
-              disabled={!pgn}
-              className="btn-primary flex-1 flex items-center justify-center gap-2"
-            >
-              <Download size={14} />
-              Download .pgn
-            </button>
           </div>
         </div>
+
+        {/* PGN text */}
+        {loading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2
+              size={22}
+              className="animate-spin"
+              style={{ color: "var(--amber)" }}
+            />
+          </div>
+        ) : (
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label
+                className="text-xs font-semibold"
+                style={{ color: "var(--text-muted)" }}
+              >
+                PGN DATA
+              </label>
+              <button
+                onClick={copyPgn}
+                className="flex items-center gap-1 text-xs font-medium"
+                style={{ color: copied ? "#15803D" : "var(--amber)" }}
+              >
+                {copied ? (
+                  <>
+                    <CheckCheck size={11} />
+                    Copied!
+                  </>
+                ) : (
+                  <>
+                    <Copy size={11} />
+                    Copy
+                  </>
+                )}
+              </button>
+            </div>
+            <pre
+              className="p-3 rounded-xl text-[11px] overflow-auto max-h-56 leading-relaxed select-all"
+              style={{
+                background: "#1e1e1e",
+                color: "#d4d4d4",
+                fontFamily: "var(--font-dm-mono)",
+              }}
+            >
+              {pgn}
+            </pre>
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="flex gap-3 pt-2">
+          <button onClick={onClose} className="btn-secondary flex-1">
+            Close
+          </button>
+          <button
+            onClick={copyPgn}
+            disabled={!pgn}
+            className="btn-secondary flex-1 flex items-center justify-center gap-2"
+          >
+            {copied ? <CheckCheck size={14} /> : <Copy size={14} />}
+            {copied ? "Copied!" : "Copy PGN"}
+          </button>
+          <button
+            onClick={downloadPgn}
+            disabled={!pgn}
+            className="btn-primary flex-1 flex items-center justify-center gap-2"
+          >
+            <Download size={14} />
+            Download .pgn
+          </button>
+        </div>
       </div>
-    </div>
+    </Modal>
   );
 }
 

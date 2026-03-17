@@ -9,7 +9,7 @@ import {
   useCreateMcq,
   useUpdateMcq,
   useDeleteMcq,
-} from "@/lib/hooks";
+} from "@/src/lib/hooks";
 import { PageLoading, EmptyState } from "@/components/shared/States";
 import Modal from "@/components/shared/Modal";
 import {

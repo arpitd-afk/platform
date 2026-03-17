@@ -1,282 +1,347 @@
-'use client'
-import { useState, useEffect } from 'react'
-import { useAuth } from '@/lib/auth-context'
-import Link from 'next/link'
-import { Eye, EyeOff, Loader2, Crown, Zap, Users, GraduationCap, BookOpen, Shield } from 'lucide-react'
-import toast from 'react-hot-toast'
+"use client";
+import { useState, useEffect } from "react";
+import { useAuth } from "@/src/lib/auth-context";
+import Link from "next/link";
+import {
+  Eye,
+  EyeOff,
+  Loader2,
+  Crown,
+  Zap,
+  Users,
+  GraduationCap,
+  BookOpen,
+  Shield,
+  ChevronLeft,
+  ArrowRight,
+} from "lucide-react";
+import Image from "next/image";
+import toast from "react-hot-toast";
+import { motion, AnimatePresence } from "framer-motion";
 
 const DEMOS = [
-  { label: 'Super Admin', email: 'superadmin@demo.com', role: 'super_admin', color: '#7C3AED', icon: Shield, desc: 'Full platform control' },
-  { label: 'Academy Admin', email: 'academy@demo.com', role: 'academy_admin', color: '#C8961E', icon: Crown, desc: 'Manage your academy' },
-  { label: 'Coach', email: 'coach@demo.com', role: 'coach', color: '#15803D', icon: GraduationCap, desc: 'Train students' },
-  { label: 'Student', email: 'student@demo.com', role: 'student', color: '#1D4ED8', icon: BookOpen, desc: 'Learn & compete' },
-  { label: 'Parent', email: 'parent@demo.com', role: 'parent', color: '#BE185D', icon: Users, desc: 'Track progress' },
-]
+  {
+    label: "Super Admin",
+    email: "superadmin@demo.com",
+    role: "super_admin",
+    color: "#60A5FA",
+    icon: Shield,
+    desc: "Complete system control",
+  },
+  {
+    label: "Academy Admin",
+    email: "academy@demo.com",
+    role: "academy_admin",
+    color: "var(--amber)",
+    icon: Crown,
+    desc: "Growth & management",
+  },
+  {
+    label: "Coach",
+    email: "coach@demo.com",
+    role: "coach",
+    color: "#4ADE80",
+    icon: GraduationCap,
+    desc: "Teaching & training",
+  },
+  {
+    label: "Student",
+    email: "student@demo.com",
+    role: "student",
+    color: "#F472B6",
+    icon: BookOpen,
+    desc: "Learning journey",
+  },
+  {
+    label: "Parent",
+    email: "parent@demo.com",
+    role: "parent",
+    color: "#A78BFA",
+    icon: Users,
+    desc: "Progress monitoring",
+  },
+];
 
-const CHESS_PIECES = ['♔', '♕', '♖', '♗', '♘', '♙']
+const CHESS_PIECES = ["♔", "♕", "♖", "♗", "♘", "♙"];
 
 export default function LoginPage() {
-  const { login } = useAuth()
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [show, setShow] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [demoLoading, setDemoLoading] = useState<string | null>(null)
-  const [mounted, setMounted] = useState(false)
+  const { login } = useAuth();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [show, setShow] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [demoLoading, setDemoLoading] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
 
-  useEffect(() => { setMounted(true) }, [])
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
-  const handleLogin = async (e?: React.FormEvent, overrideEmail?: string, overridePass?: string) => {
-    e?.preventDefault()
-    const em = overrideEmail || email
-    const pw = overridePass || password
-    if (!em || !pw) return toast.error('Enter your credentials')
-    if (overrideEmail) setDemoLoading(overrideEmail)
-    else setLoading(true)
-    try { await login(em, pw) }
-    catch (err: any) { toast.error(err.response?.data?.message || 'Login failed') }
-    finally { setLoading(false); setDemoLoading(null) }
-  }
+  const handleLogin = async (
+    e?: React.FormEvent,
+    overrideEmail?: string,
+    overridePass?: string,
+  ) => {
+    e?.preventDefault();
+    const em = overrideEmail || email;
+    const pw = overridePass || password;
+    if (!em || !pw) return toast.error("Enter your credentials");
+    if (overrideEmail) setDemoLoading(overrideEmail);
+    else setLoading(true);
+    try {
+      await login(em, pw);
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Login failed");
+    } finally {
+      setLoading(false);
+      setDemoLoading(null);
+    }
+  };
 
   return (
-    <div className="min-h-screen flex relative overflow-hidden" style={{ background: 'var(--bg)' }}>
-
-      {/* Animated background chess pieces */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        {mounted && CHESS_PIECES.map((piece, i) => (
-          <div
-            key={i}
-            className="absolute select-none"
-            style={{
-              fontSize: `${40 + i * 18}px`,
-              opacity: 0.04,
-              left: `${10 + i * 15}%`,
-              top: `${5 + (i % 3) * 30}%`,
-              animation: `float${i % 3} ${8 + i * 2}s ease-in-out infinite`,
-              color: 'var(--amber)',
-            }}
-          >
-            {piece}
-          </div>
-        ))}
+    <div className="min-h-screen bg-surface-50 flex overflow-hidden selection:bg-gold/30">
+      {/* Background Motifs */}
+      <div className="absolute inset-0 pointer-events-none opacity-[0.03] overflow-hidden">
+        {mounted &&
+          CHESS_PIECES.map((piece, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="absolute text-surface-900 select-none font-serif"
+              style={{
+                fontSize: `${120 + i * 40}px`,
+                left: `${(i * 18) % 100}%`,
+                top: `${(i * 24) % 100}%`,
+              }}
+            >
+              {piece}
+            </motion.div>
+          ))}
       </div>
 
-      {/* Left panel — branding + demo accounts */}
-      <div
-        className="hidden lg:flex flex-col w-[420px] flex-shrink-0 relative"
-        style={{
-          background: 'linear-gradient(180deg, #1c1107 0%, #2a1a0e 50%, #1c1107 100%)',
-          borderRight: '1px solid rgba(200,150,30,0.15)',
-        }}
-      >
-        {/* Gold glow accent */}
-        <div className="absolute top-0 right-0 w-64 h-64 rounded-full"
-          style={{ background: 'radial-gradient(circle, rgba(200,150,30,0.12) 0%, transparent 70%)' }} />
-        <div className="absolute bottom-0 left-0 w-48 h-48 rounded-full"
-          style={{ background: 'radial-gradient(circle, rgba(200,150,30,0.08) 0%, transparent 70%)' }} />
+      {/* Left Wall: Branding & Teasers */}
+      <div className="hidden lg:flex flex-col w-[450px] bg-surface-900 relative p-12 overflow-hidden border-r border-white/5 shadow-2xl">
+        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-gold opacity-10 blur-[150px]" />
+        <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-gold opacity-5 blur-[100px]" />
 
-        <div className="relative z-10 flex flex-col h-full p-8">
-          {/* Logo */}
-          <div className="flex items-center gap-3 mb-12">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center"
-              style={{ background: 'rgba(200,150,30,0.15)', border: '1px solid rgba(200,150,30,0.3)' }}>
-              <Crown size={20} style={{ color: '#D4AF37' }} />
+        {/* Top Branding */}
+        <Link href="/" className="relative z-10 flex items-center gap-4 group">
+          <div className="relative w-12 h-12 group-hover:scale-110 transition-transform duration-500 shadow-premium rounded-2xl overflow-hidden bg-gold p-2">
+            <Image src="/images/logo.svg" alt="Logo" fill className="object-contain" />
+          </div>
+          <div>
+            <div className="font-display font-black text-xl text-white tracking-tight">
+              Chess Academy Pro
             </div>
-            <div>
-              <div className="font-display font-bold text-sm" style={{ color: '#F5F0E8' }}>Chess Academy</div>
-              <div className="text-[10px] font-medium tracking-wider uppercase" style={{ color: 'rgba(212,175,55,0.7)' }}>Pro Platform</div>
+            <div className="text-[10px] font-black text-gold uppercase tracking-[0.3em]">
+              Master System
             </div>
           </div>
+        </Link>
 
-          {/* Hero section */}
-          <div className="flex-1 flex flex-col justify-center space-y-8">
-            <div>
-              <div className="text-6xl mb-4" style={{ filter: 'drop-shadow(0 0 20px rgba(212,175,55,0.3))' }}>♔</div>
-              <h2 className="font-display text-2xl font-bold leading-tight mb-3" style={{ color: '#F5F0E8' }}>
-                Master the art of chess education
-              </h2>
-              <p className="text-sm leading-relaxed" style={{ color: 'rgba(245,240,232,0.5)' }}>
-                The all-in-one platform for academies, coaches, and students to learn, play, and grow together.
-              </p>
-            </div>
+        {/* Middle content */}
+        <div className="relative z-10 flex-1 flex flex-col justify-center space-y-12">
+          <div className="space-y-6">
+            <h2 className="text-white text-4xl lg:text-5xl font-extrabold leading-[1.1] tracking-tight">
+              Empowering the <br />
+              <span className="text-gold-gradient">world's best</span>{" "}
+              academies.
+            </h2>
+            <p className="text-surface-400 text-lg font-medium leading-relaxed max-w-sm">
+              Join the professional standard for chess education, management,
+              and global competition.
+            </p>
+          </div>
 
-            {/* Feature pills */}
-            <div className="flex flex-wrap gap-2">
-              {['Live Classes', 'Tournaments', 'AI Analysis', 'Progress Tracking'].map(f => (
-                <span key={f} className="px-3 py-1.5 rounded-full text-xs font-medium"
-                  style={{ background: 'rgba(200,150,30,0.1)', color: 'rgba(212,175,55,0.8)', border: '1px solid rgba(200,150,30,0.15)' }}>
-                  {f}
+          <div className="flex flex-wrap gap-3">
+            {["Tournaments", "Live Classrooms", "Analytics", "Anti-Cheat"].map(
+              (tag) => (
+                <span
+                  key={tag}
+                  className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-surface-400 text-xs font-bold uppercase tracking-widest"
+                >
+                  {tag}
                 </span>
-              ))}
-            </div>
+              ),
+            )}
           </div>
+        </div>
 
-          {/* Demo accounts */}
-          <div className="space-y-2.5">
-            <div className="flex items-center gap-2 mb-3">
-              <Zap size={12} style={{ color: '#D4AF37' }} />
-              <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'rgba(212,175,55,0.6)' }}>Quick Access — Demo Accounts</p>
-            </div>
-            {DEMOS.map(d => {
-              const Icon = d.icon
-              const isLoading = demoLoading === d.email
+        {/* Bottom Demo Accounts */}
+        <div className="relative z-10 space-y-6">
+          <div className="flex items-center gap-3">
+            <Zap size={14} className="text-gold" />
+            <span className="text-[10px] font-black text-surface-500 uppercase tracking-[0.2em]">
+              Quick Demo Access
+            </span>
+          </div>
+          <div className="grid gap-3">
+            {DEMOS.map((d) => {
+              const Icon = d.icon;
+              const isLoading = demoLoading === d.email;
               return (
                 <button
                   key={d.email}
-                  onClick={() => handleLogin(undefined, d.email, 'demo1234')}
+                  onClick={() => handleLogin(undefined, d.email, "demo1234")}
                   disabled={!!demoLoading}
-                  className="w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm transition-all duration-200 text-left group"
-                  style={{
-                    background: 'rgba(245,240,232,0.04)',
-                    border: '1px solid rgba(245,240,232,0.06)',
-                  }}
-                  onMouseEnter={e => {
-                    e.currentTarget.style.background = `${d.color}15`
-                    e.currentTarget.style.borderColor = `${d.color}40`
-                  }}
-                  onMouseLeave={e => {
-                    e.currentTarget.style.background = 'rgba(245,240,232,0.04)'
-                    e.currentTarget.style.borderColor = 'rgba(245,240,232,0.06)'
-                  }}
+                  className="w-full bg-white/5 border border-white/5 hover:border-white/20 hover:bg-white/[0.08] p-4 rounded-2xl flex items-center gap-4 transition-all group"
                 >
-                  <div className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-200"
-                    style={{ background: `${d.color}18`, color: d.color }}>
-                    {isLoading ? <Loader2 size={14} className="animate-spin" /> : <Icon size={14} />}
+                  <div
+                    className="w-10 h-10 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-premium"
+                    style={{ background: `${d.color}15`, color: d.color }}
+                  >
+                    {isLoading ? (
+                      <Loader2 size={18} className="animate-spin" />
+                    ) : (
+                      <Icon size={18} />
+                    )}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium text-[13px]" style={{ color: '#F5F0E8' }}>{d.label}</div>
-                    <div className="text-[10px]" style={{ color: 'rgba(245,240,232,0.35)' }}>{d.desc}</div>
+                  <div className="text-left flex-1">
+                    <div className="text-sm font-black text-white">
+                      {d.label}
+                    </div>
+                    <div className="text-[10px] text-surface-500 font-bold">
+                      {d.desc}
+                    </div>
                   </div>
-                  <div className="text-[10px] font-mono opacity-0 group-hover:opacity-100 transition-opacity"
-                    style={{ color: 'rgba(245,240,232,0.3)' }}>→</div>
+                  <ArrowRight
+                    size={14}
+                    className="text-surface-700 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all"
+                  />
                 </button>
-              )
+              );
             })}
-            <p className="text-[10px] text-center pt-1" style={{ color: 'rgba(245,240,232,0.25)' }}>
-              Password: <span className="font-mono" style={{ color: 'rgba(212,175,55,0.5)' }}>demo1234</span>
-            </p>
           </div>
+          <p className="text-[10px] text-center text-surface-600 font-bold uppercase tracking-widest">
+            Demo Password: <span className="text-white">demo1234</span>
+          </p>
         </div>
       </div>
 
-      {/* Right: login form */}
-      <div className="flex-1 flex items-center justify-center p-6 relative">
-        <div className="w-full max-w-[380px]" style={mounted ? { animation: 'fadeIn 0.4s ease-out both' } : { opacity: 0 }}>
+      {/* Right Wall: Form */}
+      <div className="flex-1 flex items-center justify-center p-6 bg-surface-50 relative">
+        <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-gold opacity-[0.02] blur-[150px] pointer-events-none" />
 
-          {/* Mobile logo */}
-          <div className="lg:hidden flex items-center justify-center gap-2.5 mb-8">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center"
-              style={{ background: 'rgba(200,150,30,0.15)', border: '1px solid rgba(200,150,30,0.25)' }}>
-              <Crown size={20} style={{ color: 'var(--amber)' }} />
+        <div className="w-full max-w-[420px] space-y-12 relative z-10">
+          {/* Mobile Branding */}
+          <Link
+            href="/"
+            className="lg:hidden flex items-center justify-center gap-4 group mb-12"
+          >
+            <div className="relative w-12 h-12 shadow-xl rounded-xl overflow-hidden bg-gold p-2">
+              <Image src="/images/logo.svg" alt="Logo" fill className="object-contain" />
             </div>
-            <span className="font-display font-bold text-lg" style={{ color: 'var(--text)' }}>Chess Academy Pro</span>
+            <span className="font-display font-black text-xl text-surface-900 tracking-tight">
+              Chess Academy Pro
+            </span>
+          </Link>
+
+          <div className="text-center space-y-4">
+            <h1 className="text-4xl font-black tracking-tight text-surface-900 lg:text-5xl">
+              Welcome back.
+            </h1>
+            <p className="text-surface-500 text-lg font-medium">
+              Please enter your credentials to access your dashboard.
+            </p>
           </div>
 
-          <div className="text-center mb-8">
-            <h1 className="font-display text-3xl font-bold mb-2" style={{ color: 'var(--text)' }}>Welcome back</h1>
-            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Sign in to continue to your dashboard</p>
-          </div>
-
-          <form onSubmit={handleLogin} className="space-y-5">
-            <div>
-              <label className="label">Email address</label>
-              <input
-                id="login-email"
-                className="input"
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                autoFocus
-                autoComplete="email"
-              />
+          <form onSubmit={handleLogin} className="space-y-6">
+            <div className="space-y-3">
+              <label className="text-[10px] font-black text-surface-400 uppercase tracking-[0.2em] ml-1">
+                Email address
+              </label>
+              <div className="relative">
+                <input
+                  className="input h-14 bg-white border-surface-200 font-bold text-surface-900 shadow-sm focus:shadow-premium transition-all"
+                  type="email"
+                  placeholder="you@academy.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </div>
             </div>
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="label mb-0">Password</label>
-                <Link href="/forgot-password" className="text-xs hover:underline transition-colors" style={{ color: 'var(--amber)' }}>
-                  Forgot password?
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between px-1">
+                <label className="text-[10px] font-black text-surface-400 uppercase tracking-[0.2em]">
+                  Password
+                </label>
+                <Link
+                  href="/forgot-password"
+                  className="text-[10px] font-black text-gold uppercase tracking-[0.1em] hover:underline"
+                >
+                  Forgot?
                 </Link>
               </div>
               <div className="relative">
                 <input
-                  id="login-password"
-                  className="input pr-10"
-                  type={show ? 'text' : 'password'}
+                  className="input h-14 bg-white border-surface-200 font-bold text-surface-900 shadow-sm focus:shadow-premium transition-all pr-12"
+                  type={show ? "text" : "password"}
                   placeholder="••••••••"
                   value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  autoComplete="current-password"
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
                 />
-                <button type="button" onClick={() => setShow(!show)} className="absolute right-3 top-1/2 -translate-y-1/2 btn-icon w-7 h-7">
-                  {show ? <EyeOff size={14} /> : <Eye size={14} />}
+                <button
+                  type="button"
+                  onClick={() => setShow(!show)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-surface-300 hover:text-gold transition-colors"
+                >
+                  {show ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
             </div>
 
             <button
-              id="login-submit"
               type="submit"
               disabled={loading}
-              className="btn-primary w-full py-3 text-sm mt-2"
-              style={{ fontSize: '14px' }}
+              className="btn-primary w-full py-5 rounded-2xl flex items-center justify-center gap-3 font-black text-xl shadow-2xl shadow-gold/20 active:scale-[0.98] transition-all"
             >
-              {loading ? <Loader2 size={16} className="animate-spin" /> : 'Sign In'}
+              {loading ? (
+                <Loader2 size={24} className="animate-spin" />
+              ) : (
+                "Sign In"
+              )}
             </button>
           </form>
 
-          {/* Mobile demo accounts */}
-          <div className="lg:hidden mt-10">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
-              <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Demo Accounts</span>
-              <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              {DEMOS.map(d => {
-                const Icon = d.icon
-                const isLoading = demoLoading === d.email
-                return (
-                  <button
-                    key={d.email}
-                    onClick={() => handleLogin(undefined, d.email, 'demo1234')}
-                    disabled={!!demoLoading}
-                    className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-medium transition-all"
-                    style={{ background: `${d.color}08`, color: d.color, border: `1px solid ${d.color}18` }}
-                  >
-                    {isLoading ? <Loader2 size={12} className="animate-spin" /> : <Icon size={12} />}
-                    {d.label}
-                  </button>
-                )
-              })}
-            </div>
-            <p className="text-[10px] text-center mt-3" style={{ color: 'var(--text-muted)' }}>
-              All demos use password: <strong className="font-mono">demo1234</strong>
+          <div className="pt-8 border-t border-surface-200/60 lg:hidden">
+            <p className="text-[10px] font-black text-surface-400 uppercase tracking-widest text-center mb-6">
+              Quick Demo Login
             </p>
+            <div className="grid grid-cols-2 gap-3">
+              {DEMOS.map((d) => (
+                <button
+                  key={d.email}
+                  onClick={() => handleLogin(undefined, d.email, "demo1234")}
+                  disabled={!!demoLoading}
+                  className="flex items-center gap-3 p-3 rounded-xl border border-surface-200 bg-white hover:border-gold/30 transition-all shadow-sm"
+                >
+                  <div
+                    className="w-8 h-8 rounded-lg flex items-center justify-center"
+                    style={{ background: `${d.color}10`, color: d.color }}
+                  >
+                    {demoLoading === d.email ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <d.icon size={14} />
+                    )}
+                  </div>
+                  <span className="text-[10px] font-black text-surface-900">
+                    {d.label}
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
 
-          {/* Footer */}
-          <p className="text-center text-xs mt-8" style={{ color: 'var(--text-muted)' }}>
-            © 2024 Chess Academy Pro. All rights reserved.
+          <p className="text-center text-[10px] font-black text-surface-300 uppercase tracking-[0.3em] pt-12">
+            © 2025 Chess Academy Pro · Premium Enterprise Standard
           </p>
         </div>
       </div>
-
-      {/* Floating piece keyframes */}
-      <style jsx>{`
-        @keyframes float0 {
-          0%, 100% { transform: translateY(0) rotate(0deg); }
-          50% { transform: translateY(-20px) rotate(5deg); }
-        }
-        @keyframes float1 {
-          0%, 100% { transform: translateY(0) rotate(0deg); }
-          50% { transform: translateY(-15px) rotate(-3deg); }
-        }
-        @keyframes float2 {
-          0%, 100% { transform: translateY(0) rotate(0deg); }
-          50% { transform: translateY(-25px) rotate(4deg); }
-        }
-      `}</style>
     </div>
-  )
+  );
 }

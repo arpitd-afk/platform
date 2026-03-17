@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { activityLogsAPI } from '@/lib/api'
+import { activityLogsAPI } from '@/src/lib/api'
 import { PageLoading, EmptyState } from '@/components/shared/States'
 import { Activity, Search, RefreshCw, Filter } from 'lucide-react'
 

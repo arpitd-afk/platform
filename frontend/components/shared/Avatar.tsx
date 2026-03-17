@@ -1,8 +1,8 @@
 'use client'
 import { useState } from 'react'
 import { Camera, Loader2 } from 'lucide-react'
-import { usersAPI } from '@/lib/api'
-import { useAuth } from '@/lib/auth-context'
+import { usersAPI } from '@/src/lib/api'
+import { useAuth } from '@/src/lib/auth-context'
 import NextImage from 'next/image'
 import toast from 'react-hot-toast'
 

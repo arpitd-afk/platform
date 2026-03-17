@@ -1,8 +1,8 @@
 "use client";
 import { useState } from "react";
-import { useUsers, useBatches } from "@/lib/hooks";
+import { useUsers, useBatches } from "@/src/lib/hooks";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { usersAPI, batchesAPI, api } from "@/lib/api";
+import { usersAPI, batchesAPI, api } from "@/src/lib/api";
 import { PageLoading, EmptyState } from "@/components/shared/States";
 import CreateUserModal from "@/components/shared/CreateUserModal";
 import Avatar from "@/components/shared/Avatar";

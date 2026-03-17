@@ -1,9 +1,10 @@
 "use client";
 import { useState } from "react";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth } from "@/src/lib/auth-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import api from "../../../../lib/api";
+import api from "@/src/lib/api";
 import { PageLoading, EmptyState } from "@/components/shared/States";
+import Modal from "@/components/shared/Modal";
 import Avatar from "@/components/shared/Avatar";
 import toast from "react-hot-toast";
 import {
@@ -70,12 +71,9 @@ function AttendanceModal({ cls, onClose }: { cls: any; onClose: () => void }) {
     });
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: "rgba(0,0,0,0.4)" }}
-    >
-      <div className="card w-full max-w-md max-h-[80vh] flex flex-col p-0 overflow-hidden">
-        <div className="p-5 border-b border-[var(--border)]">
+    <Modal title="Mark Attendance" onClose={onClose}>
+      <div className="flex flex-col w-full max-w-md max-h-[70vh]">
+        <div className="pb-4 mb-4 border-b border-[var(--border)]">
           <h3 className="font-display font-bold text-lg">{cls.title}</h3>
           <p className="text-sm text-[var(--text-muted)] mt-0.5">
             {new Date(cls.scheduled_at).toLocaleString()}
@@ -90,7 +88,7 @@ function AttendanceModal({ cls, onClose }: { cls: any; onClose: () => void }) {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-2">
+        <div className="flex-1 overflow-y-auto pr-1 space-y-2">
           {/* Quick actions */}
           <div className="flex gap-2 mb-3">
             <button
@@ -119,8 +117,8 @@ function AttendanceModal({ cls, onClose }: { cls: any; onClose: () => void }) {
                 onClick={() => toggle(s.id)}
                 className="flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all select-none"
                 style={{
-                  background: marked.has(s.id) ? "#DCFCE7" : "#FEE2E2",
-                  border: `1px solid ${marked.has(s.id) ? "#86EFAC" : "#FECACA"}`,
+                  background: marked.has(s.id) ? "rgba(21,128,61,0.08)" : "rgba(220,38,38,0.05)",
+                  border: `1px solid ${marked.has(s.id) ? "rgba(21,128,61,0.15)" : "rgba(220,38,38,0.1)"}`,
                 }}
               >
                 <Avatar user={s} size="sm" />
@@ -148,7 +146,7 @@ function AttendanceModal({ cls, onClose }: { cls: any; onClose: () => void }) {
           )}
         </div>
 
-        <div className="p-4 border-t border-[var(--border)] flex gap-3">
+        <div className="pt-5 mt-4 border-t border-[var(--border)] flex gap-3">
           <button onClick={onClose} className="btn-secondary flex-1">
             Cancel
           </button>
@@ -162,7 +160,7 @@ function AttendanceModal({ cls, onClose }: { cls: any; onClose: () => void }) {
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -346,7 +344,8 @@ export default function CoachAttendancePage() {
                       <div className="flex items-center gap-2 shrink-0">
                         <button
                           onClick={() => setOpenModal(cls)}
-                          className="btn-primary text-xs px-3 py-1.5"
+                          className="btn-primary text-xs px-3 py-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                          disabled={cls.status === 'scheduled'}
                         >
                           Mark
                         </button>

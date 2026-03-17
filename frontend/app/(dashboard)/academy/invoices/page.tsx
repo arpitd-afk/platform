@@ -1,8 +1,8 @@
 "use client";
 import { useState } from "react";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth } from "@/src/lib/auth-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { studentInvoicesAPI, api } from "@/lib/api";
+import { studentInvoicesAPI, api } from "@/src/lib/api";
 import { PageLoading } from "@/components/shared/States";
 import toast from "react-hot-toast";
 import {
@@ -427,21 +427,13 @@ export default function InvoicesPage() {
     onError: () => toast.error("Only draft invoices can be deleted"),
   });
 
-  const downloadPdf = (id: string, invNumber: string) => {
-    const token =
-      localStorage.getItem("token") || sessionStorage.getItem("token") || "";
-    fetch(studentInvoicesAPI.pdfUrl(id), {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => r.blob())
-      .then((blob) => {
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        a.download = `invoice-${invNumber}.pdf`;
-        a.click();
-        toast.success("PDF downloaded!");
-      })
-      .catch(() => toast.error("Failed to download PDF"));
+  const downloadPdf = async (id: string, invNumber: string) => {
+    try {
+      await studentInvoicesAPI.download(id, `invoice-${invNumber}.pdf`);
+      toast.success("PDF downloaded!");
+    } catch {
+      toast.error("Failed to download PDF");
+    }
   };
 
   const filtered = invoices.filter(

@@ -10,11 +10,11 @@ import {
   useBatchMessages,
   useSendBatchMessage,
   useDeleteBatchMessage,
-} from "@/lib/hooks";
+} from "@/src/lib/hooks";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useAuth } from "@/lib/auth-context";
-import { api } from "@/lib/api";
-import { getSocketInstance } from "@/lib/hooks/useSocket";
+import { useAuth } from "@/src/lib/auth-context";
+import { api } from "@/src/lib/api";
+import { getSocketInstance } from "@/src/lib/hooks/useSocket";
 import {
   Send,
   Search,

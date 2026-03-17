@@ -1,5 +1,5 @@
 "use client";
-import { useMyChildren, useStudentAttendance } from "@/lib/hooks";
+import { useMyChildren, useStudentAttendance } from "@/src/lib/hooks";
 import { PageLoading, EmptyState } from "@/components/shared/States";
 import {
   Calendar,

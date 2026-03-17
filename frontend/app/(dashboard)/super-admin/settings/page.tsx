@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
-import { useAuth } from "@/lib/auth-context";
-import { authAPI } from "@/lib/api";
+import { useAuth } from "@/src/lib/auth-context";
+import { authAPI } from "@/src/lib/api";
 import {
   Settings,
   Shield,

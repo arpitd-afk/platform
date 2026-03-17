@@ -1,7 +1,7 @@
 "use client";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth } from "@/src/lib/auth-context";
 import { useQuery } from "@tanstack/react-query";
-import { studentInvoicesAPI } from "@/lib/api";
+import { studentInvoicesAPI } from "@/src/lib/api";
 import { PageLoading } from "@/components/shared/States";
 import toast from "react-hot-toast";
 import { Wallet, Download, AlertTriangle, Receipt, User } from "lucide-react";
@@ -32,21 +32,13 @@ export default function ParentPaymentsPage() {
     enabled: !!user?.id,
   });
 
-  const downloadPdf = (id: string, invNumber: string) => {
-    const token =
-      localStorage.getItem("token") || sessionStorage.getItem("token") || "";
-    fetch(studentInvoicesAPI.pdfUrl(id), {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => r.blob())
-      .then((blob) => {
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        a.download = `invoice-${invNumber}.pdf`;
-        a.click();
-        toast.success("Invoice downloaded!");
-      })
-      .catch(() => toast.error("Failed to download"));
+  const downloadPdf = async (id: string, invNumber: string) => {
+    try {
+      await studentInvoicesAPI.download(id, `invoice-${invNumber}.pdf`);
+      toast.success("Invoice downloaded!");
+    } catch {
+      toast.error("Failed to download");
+    }
   };
 
   if (isLoading) return <PageLoading />;

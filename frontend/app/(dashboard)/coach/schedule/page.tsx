@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import { useClassrooms } from '@/lib/hooks'
+import { useClassrooms } from '@/src/lib/hooks'
 import { PageLoading } from '@/components/shared/States'
 import Link from 'next/link'
 import { Calendar, Clock, Users, ChevronLeft, ChevronRight, Plus, Video } from 'lucide-react'
@@ -30,7 +30,7 @@ export default function CoachSchedulePage() {
 
   const selectedDayClasses = getClassesForDay(today.getDate())
   const upcomingClasses = classrooms
-    .filter((c: any) => c.scheduled_at && new Date(c.scheduled_at) >= today)
+    .filter((c: any) => c.scheduled_at && new Date(c.scheduled_at) >= today && ['live', 'scheduled'].includes(c.status))
     .sort((a: any, b: any) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())
     .slice(0, 10)
 

@@ -123,7 +123,7 @@ router.put('/:id/submissions/:subId/grade', authorize('coach', 'academy_admin', 
 
     await query(
       `UPDATE assignment_submissions
-       SET grade=$1, feedback=$2, graded_by=$3, graded_at=NOW()
+       SET score=$1, feedback=$2, graded_by=$3, graded_at=NOW()
        WHERE id=$4 AND assignment_id=$5`,
       [grade ?? null, feedback ?? null, req.user.id, req.params.subId, req.params.id]
     );
@@ -181,7 +181,7 @@ router.post('/:id/grade', authorize('coach', 'academy_admin', 'super_admin'), as
     const { submissionId, grade, feedback } = req.body;
     await query(
       `UPDATE assignment_submissions
-       SET grade=$1, feedback=$2, graded_by=$3, graded_at=NOW()
+       SET score=$1, feedback=$2, graded_by=$3, graded_at=NOW()
        WHERE id=$4`,
       [grade, feedback, req.user.id, submissionId]
     );

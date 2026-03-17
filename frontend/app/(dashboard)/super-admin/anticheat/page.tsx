@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { anticheatAPI, usersAPI } from '@/lib/api'
+import { anticheatAPI, usersAPI } from '@/src/lib/api'
 import { PageLoading, EmptyState } from '@/components/shared/States'
 import Modal from '@/components/shared/Modal'
 import Avatar from '@/components/shared/Avatar'

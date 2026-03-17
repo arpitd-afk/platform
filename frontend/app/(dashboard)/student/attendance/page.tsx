@@ -1,6 +1,6 @@
 "use client";
-import { useAuth } from "@/lib/auth-context";
-import { useStudentAttendance } from "@/lib/hooks";
+import { useAuth } from "@/src/lib/auth-context";
+import { useStudentAttendance } from "@/src/lib/hooks";
 import { PageLoading, EmptyState } from "@/components/shared/States";
 import {
   Calendar,

@@ -1,10 +1,10 @@
 "use client";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth } from "@/src/lib/auth-context";
 import {
   useTournaments,
   useRegisterTournament,
   useUnregisterTournament,
-} from "@/lib/hooks";
+} from "@/src/lib/hooks";
 import { PageLoading, EmptyState } from "@/components/shared/States";
 import Link from "next/link";
 import {

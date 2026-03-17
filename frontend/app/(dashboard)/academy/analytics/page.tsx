@@ -1,8 +1,8 @@
 "use client";
 import { useState } from "react";
-import { useAuth } from "@/lib/auth-context";
-import { useAcademyAnalytics, useCoachPerformance } from "@/lib/hooks";
-import { useUsers } from "@/lib/hooks";
+import { useAuth } from "@/src/lib/auth-context";
+import { useAcademyAnalytics, useCoachPerformance } from "@/src/lib/hooks";
+import { useUsers } from "@/src/lib/hooks";
 import { PageLoading } from "@/components/shared/States";
 import Avatar from "@/components/shared/Avatar";
 import {

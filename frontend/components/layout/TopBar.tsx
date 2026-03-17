@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { useAuth } from "@/lib/auth-context";
-import { useNotifications, useMarkAllRead, useUnreadCount } from "@/lib/hooks";
+import { useAuth } from "@/src/lib/auth-context";
+import { useNotifications, useMarkAllRead, useUnreadCount } from "@/src/lib/hooks";
 import Avatar from "@/components/shared/Avatar";
 import Link from "next/link";
 import {

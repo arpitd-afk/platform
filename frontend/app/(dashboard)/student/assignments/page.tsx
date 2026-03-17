@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
-import { useAuth } from "@/lib/auth-context";
-import { useAssignments, useSubmitAssignment } from "@/lib/hooks";
+import { useAuth } from "@/src/lib/auth-context";
+import { useAssignments, useSubmitAssignment } from "@/src/lib/hooks";
 import { PageLoading, EmptyState } from "@/components/shared/States";
 import Modal from "@/components/shared/Modal";
 import {
@@ -237,10 +237,10 @@ export default function StudentAssignmentsPage() {
       (a: any) => !a.submitted_at && a.due_date && new Date(a.due_date) < now,
     ).length,
     submitted: assignments.filter(
-      (a: any) => a.submitted_at && a.grade === null,
+      (a: any) => a.submitted_at && !a.graded_at,
     ).length,
     graded: assignments.filter(
-      (a: any) => a.grade !== null && a.grade !== undefined,
+      (a: any) => !!a.graded_at,
     ).length,
   };
 
@@ -255,21 +255,19 @@ export default function StudentAssignmentsPage() {
           if (filter === "overdue")
             return !a.submitted_at && a.due_date && new Date(a.due_date) < now;
           if (filter === "submitted")
-            return (
-              a.submitted_at && (a.grade === null || a.grade === undefined)
-            );
+            return a.submitted_at && !a.graded_at;
           if (filter === "graded")
-            return a.grade !== null && a.grade !== undefined;
+            return !!a.graded_at;
           return true;
         });
 
   const avgGrade = (() => {
-    const graded = assignments.filter(
+    const gradedWithScore = assignments.filter(
       (a: any) => a.grade !== null && a.grade !== undefined,
     );
-    if (!graded.length) return null;
+    if (!gradedWithScore.length) return null;
     return Math.round(
-      graded.reduce((s: number, a: any) => s + a.grade, 0) / graded.length,
+      gradedWithScore.reduce((s: number, a: any) => s + a.grade, 0) / gradedWithScore.length,
     );
   })();
 
@@ -357,7 +355,7 @@ export default function StudentAssignmentsPage() {
               </div>
             )}
 
-            {viewTarget.feedback ? (
+            {viewTarget.graded_at ? (
               <div
                 className="p-4 rounded-xl"
                 style={{
@@ -373,7 +371,7 @@ export default function StudentAssignmentsPage() {
                   Coach Feedback
                 </p>
                 <p className="text-sm" style={{ color: "var(--text)" }}>
-                  {viewTarget.feedback}
+                  {viewTarget.feedback || "No feedback provided."}
                 </p>
                 {viewTarget.graded_at && (
                   <p
@@ -532,7 +530,7 @@ export default function StudentAssignmentsPage() {
             const isOverdue =
               !a.submitted_at && a.due_date && new Date(a.due_date) < now;
             const isSubmitted = !!a.submitted_at;
-            const isGraded = a.grade !== null && a.grade !== undefined;
+            const isGraded = !!a.graded_at;
             const isPending = !isSubmitted && !isOverdue;
 
             return (

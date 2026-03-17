@@ -1,5 +1,5 @@
 'use client'
-import { useNotifications, useMarkRead, useMarkAllRead } from '@/lib/hooks'
+import { useNotifications, useMarkRead, useMarkAllRead } from '@/src/lib/hooks'
 import { PageLoading } from '@/components/shared/States'
 import { Bell, CheckCheck, Check } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'

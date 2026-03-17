@@ -3,8 +3,8 @@ import {
   usersAPI, academiesAPI, batchesAPI, classroomsAPI, gamesAPI,
   tournamentsAPI, assignmentsAPI, puzzlesAPI, analyticsAPI,
   notificationsAPI, billingAPI, contentAPI, parentAPI
-} from '@/lib/api'
-import { useAuth } from '@/lib/auth-context'
+} from '@/src/lib/api'
+import { useAuth } from '@/src/lib/auth-context'
 import toast from 'react-hot-toast'
 
 // ─── Keys ─────────────────────────────────────────────────────────────────────

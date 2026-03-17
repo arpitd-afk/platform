@@ -1,8 +1,8 @@
 "use client";
 import { useState } from "react";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth } from "@/src/lib/auth-context";
 import { useQuery } from "@tanstack/react-query";
-import { studentReportsAPI, api } from "@/lib/api";
+import { studentReportsAPI, api } from "@/src/lib/api";
 import { PageLoading } from "@/components/shared/States";
 import toast from "react-hot-toast";
 import {
@@ -68,20 +68,10 @@ export default function StudentReportsPage() {
   const downloadReport = async () => {
     if (!selectedStudent) return;
     setDownloading(true);
-    const token =
-      localStorage.getItem("token") || sessionStorage.getItem("token") || "";
     try {
-      const r = await fetch(
-        studentReportsAPI.pdfUrl(selectedStudent.id, periodDays),
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      );
-      const blob = await r.blob();
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = `report_${selectedStudent.name.replace(/\s+/g, "_")}.pdf`;
-      a.click();
+      const url = studentReportsAPI.pdfUrl(selectedStudent.id, periodDays);
+      const filename = `report_${selectedStudent.name.replace(/\s+/g, "_")}.pdf`;
+      await studentReportsAPI.download(selectedStudent.id, periodDays, filename);
       toast.success("Report downloaded!");
     } catch {
       toast.error("Failed to download report");

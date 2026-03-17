@@ -1,13 +1,13 @@
 "use client";
 import { useState, useEffect } from "react";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth } from "@/src/lib/auth-context";
 import {
   useAcademy,
   usePlans,
   useInvoices,
   useSubscription,
-} from "@/lib/hooks";
-import { billingAPI } from "@/lib/api";
+} from "@/src/lib/hooks";
+import { billingAPI } from "@/src/lib/api";
 import { PageLoading } from "@/components/shared/States";
 import toast from "react-hot-toast";
 import {
@@ -112,7 +112,7 @@ export default function BillingPage() {
       // 1. Create order on server
       const orderRes = await billingAPI.createOrder({
         planName,
-        academyId: user.academy_id,
+        academyId: user.academyId || user.academy_id,
       });
       const { orderId, amount, currency, keyId } = orderRes.data;
 
@@ -152,7 +152,7 @@ export default function BillingPage() {
               razorpay_order_id: response.razorpay_order_id,
               razorpay_payment_id: response.razorpay_payment_id,
               razorpay_signature: response.razorpay_signature,
-              academyId: user.academy_id,
+              academyId: user.academyId || user.academy_id,
               planName,
             });
             toast.success(`🎉 Upgraded to ${planName} plan!`);

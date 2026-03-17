@@ -3,8 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useAuth } from "@/lib/auth-context";
-import { useUnreadCount } from "@/lib/hooks";
+import { useAuth } from "@/src/lib/auth-context";
+import { useUnreadCount } from "@/src/lib/hooks";
 import Avatar from "@/components/shared/Avatar";
 import { motion, AnimatePresence } from "framer-motion";
 import {

@@ -1,13 +1,13 @@
 'use client'
-import { useUsers } from '@/lib/hooks'
-import { useAuth } from '@/lib/auth-context'
+import { useLeaderboard } from '@/src/lib/hooks'
+import { useAuth } from '@/src/lib/auth-context'
 import { PageLoading } from '@/components/shared/States'
 import Avatar from '@/components/shared/Avatar'
 import { Award, Crown, Star, TrendingUp } from 'lucide-react'
 
 export default function LeaderboardPage() {
   const { user } = useAuth()
-  const { data: students = [], isLoading } = useUsers({ role: 'student' })
+  const { data: students = [], isLoading } = useLeaderboard(user?.academy_id || user?.academyId)
 
   if (isLoading) return <PageLoading />
 
@@ -73,9 +73,9 @@ export default function LeaderboardPage() {
                 <td className="td text-center">
                   <span className="font-bold font-mono" style={{ color: 'var(--amber)' }}>{s.rating || 1200}</span>
                 </td>
-                <td className="td text-center text-sm hidden sm:table-cell" style={{ color: 'var(--text-muted)' }}>{s.games_played || 0}</td>
+                <td className="td text-center text-sm hidden sm:table-cell" style={{ color: 'var(--text-muted)' }}>{s.games || 0}</td>
                 <td className="td text-center text-sm hidden sm:table-cell" style={{ color: 'var(--text-muted)' }}>
-                  {s.win_rate ? `${Math.round(s.win_rate * 100)}%` : '—'}
+                  {s.games > 0 ? `${Math.round((s.wins / s.games) * 100)}%` : '—'}
                 </td>
               </tr>
             ))}

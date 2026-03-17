@@ -1,9 +1,9 @@
 "use client";
 import { useState, useEffect } from "react";
-import { useAuth } from "@/lib/auth-context";
-import { useAcademy } from "@/lib/hooks";
+import { useAuth } from "@/src/lib/auth-context";
+import { useAcademy } from "@/src/lib/hooks";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { academiesAPI } from "@/lib/api";
+import { academiesAPI } from "@/src/lib/api";
 import { PageLoading } from "@/components/shared/States";
 import {
   Settings,

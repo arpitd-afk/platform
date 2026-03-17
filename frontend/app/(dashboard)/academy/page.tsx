@@ -1,11 +1,11 @@
 "use client";
 import AnnouncementBanner from "@/components/shared/AnnouncementBanner";
-import { useAuth } from "@/lib/auth-context";
-import { useAcademy } from "@/lib/hooks";
-import { useUsers } from "@/lib/hooks";
-import { useClassrooms } from "@/lib/hooks";
-import { useTournaments } from "@/lib/hooks";
-import { useAcademyAnalytics } from "@/lib/hooks";
+import { useAuth } from "@/src/lib/auth-context";
+import { useAcademy } from "@/src/lib/hooks";
+import { useUsers } from "@/src/lib/hooks";
+import { useClassrooms } from "@/src/lib/hooks";
+import { useTournaments } from "@/src/lib/hooks";
+import { useAcademyAnalytics } from "@/src/lib/hooks";
 import { PageLoading } from "@/components/shared/States";
 import Link from "next/link";
 import {
@@ -53,7 +53,7 @@ export default function AcademyDashboard() {
 
   const liveClasses = classrooms.filter((c: any) => c.status === "live");
   const upcomingClasses = classrooms
-    .filter((c: any) => c.status === "scheduled")
+    .filter((c: any) => ["live", "scheduled"].includes(c.status))
     .slice(0, 3);
   const enrollData = analytics?.enrollmentTrend || [
     { m: "4mo", v: Math.max(students.length - 30, 0) },

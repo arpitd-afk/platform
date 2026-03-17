@@ -1,9 +1,9 @@
 "use client";
 import { useState, useEffect } from "react";
-import { useAuth } from "@/lib/auth-context";
-import { useUpdateUser } from "@/lib/hooks";
+import { useAuth } from "@/src/lib/auth-context";
+import { useUpdateUser } from "@/src/lib/hooks";
 import { useQuery } from "@tanstack/react-query";
-import { usersAPI, analyticsAPI, authAPI } from "@/lib/api";
+import { usersAPI, analyticsAPI, authAPI } from "@/src/lib/api";
 import Avatar from "@/components/shared/Avatar";
 import {
   User,

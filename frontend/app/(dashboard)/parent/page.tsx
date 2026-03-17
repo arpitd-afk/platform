@@ -1,6 +1,8 @@
 "use client";
-import { useAuth } from "@/lib/auth-context";
-import { useMyChildren } from "@/lib/hooks";
+import { useAuth } from "@/src/lib/auth-context";
+import { useMyChildren } from "@/src/lib/hooks";
+import { useQuery } from "@tanstack/react-query";
+import { assignmentsAPI, classroomsAPI } from "@/src/lib/api";
 import { PageLoading } from "@/components/shared/States";
 import Avatar from "@/components/shared/Avatar";
 import Link from "next/link";
@@ -18,7 +20,51 @@ export default function ParentDashboard() {
   const { user } = useAuth();
   const { data: children = [], isLoading } = useMyChildren();
 
-  if (isLoading) return <PageLoading />;
+  const { data: assignments = [], isLoading: isAssignmentsLoading } = useQuery({
+    queryKey: ["parent-assignments"],
+    queryFn: () =>
+      Promise.all(
+        children.map((c: any) =>
+          assignmentsAPI
+            .list({ studentId: c.id })
+            .then((r: any) =>
+              r.data.assignments.map((a: any) => ({
+                ...a,
+                childName: c.name,
+                childId: c.id,
+              })),
+            ),
+        ),
+      ).then((results) => results.flat()),
+    enabled: children.length > 0,
+    staleTime: 30000,
+  });
+
+  const { data: classrooms = [], isLoading: isClassroomsLoading } = useQuery({
+    queryKey: ["parent-classrooms"],
+    queryFn: () =>
+      Promise.all(
+        children.map((c: any) =>
+          classroomsAPI
+            .list({ studentId: c.id })
+            .then((r: any) =>
+              r.data.classrooms.map((cls: any) => ({
+                ...cls,
+                childName: c.name,
+              })),
+            ),
+        ),
+      ).then((results) => results.flat()),
+    enabled: children.length > 0,
+    staleTime: 30000,
+  });
+
+  if (isLoading || (children.length > 0 && (isAssignmentsLoading || isClassroomsLoading))) return <PageLoading />;
+
+  const pendingCount = assignments.filter((a: any) => !a.submitted_at).length;
+  const upcomingClassesCount = classrooms.filter((c: any) =>
+    ["live", "scheduled"].includes(c.status),
+  ).length;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -143,14 +189,14 @@ export default function ParentDashboard() {
           },
           {
             label: "Upcoming Classes",
-            value: 0,
+            value: upcomingClassesCount,
             icon: Calendar,
             color: "#1D4ED8",
             href: "/parent/attendance",
           },
           {
             label: "Pending Homework",
-            value: 0,
+            value: pendingCount,
             icon: ClipboardList,
             color: "#9A6E00",
             href: "/parent/homework",

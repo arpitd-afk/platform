@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useParams } from "next/navigation";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth } from "@/src/lib/auth-context";
 import {
   useTournament,
   useTournamentStandings,
@@ -12,7 +12,7 @@ import {
   useRegisterTournament,
   useUnregisterTournament,
   useCancelTournament,
-} from "@/lib/hooks";
+} from "@/src/lib/hooks";
 import { PageLoading } from "@/components/shared/States";
 import Avatar from "@/components/shared/Avatar";
 import Modal from "@/components/shared/Modal";

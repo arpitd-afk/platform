@@ -1,100 +1,135 @@
 import Link from 'next/link'
-import { Monitor, Users, Trophy, BarChart3, Shield, Puzzle, GraduationCap, MessageSquare } from 'lucide-react'
+import Image from 'next/image'
+import { Monitor, Users, Trophy, BarChart3, Shield, Puzzle, GraduationCap, CheckCircle2 } from 'lucide-react'
 
-const features = [
+const mainFeatures = [
   {
-    icon: Monitor, color: 'var(--amber)', title: 'Live Chess Classrooms',
-    desc: 'Coach-controlled shared board with real-time arrow annotations, student hand-raising, and live chat. Every move is synced instantly for all participants.',
-    points: ['Shared board with coach control', 'Live arrow & highlight annotations', 'Student raise-hand system', 'Save lesson as PGN'],
+    title: 'Live Chess Classrooms',
+    desc: 'The heart of your academy. A shared board that works perfectly on any device, syncing every move and annotation instantly.',
+    image: '/images/classroom_mockup.png',
+    color: 'var(--amber)',
+    points: ['Real-time arrow & highlight annotations', 'Coach-student board control switching', 'One-click PGN lesson saving', 'Built-in video and voice integration support'],
+    icon: Monitor
   },
   {
-    icon: Trophy, color: '#60A5FA', title: 'Tournament System',
-    desc: 'Host Swiss, Round Robin, and Knockout tournaments with auto-pairing, live standings, and ELO rating updates after every game.',
-    points: ['Swiss, Round Robin, Knockout formats', 'Automatic pairing engine', 'Live standings & leaderboards', 'ELO rating integration'],
+    title: 'Advanced Tournament System',
+    desc: 'Run professional events with ease. From local club matches to national championships, our system handles it all.',
+    image: '/images/tournament_mockup.png',
+    color: '#60A5FA',
+    points: ['Swiss, Round Robin, and K.O. formats', 'Instant ELO rating updates after games', 'Live spectator walls and leaderboards', 'Automatic pairing for subsequent rounds'],
+    icon: Trophy
   },
+  {
+    title: 'Parent & Student Portals',
+    desc: 'Keep everyone in the loop. Parents can track progress without disturbing coaches, and students have a dedicated hub for all their activities.',
+    image: '/images/parent_mockup.png',
+    color: '#F472B6',
+    points: ['Real-time attendance & homework tracking', 'Progress charts and performance analytics', 'Direct student-coach private messaging', 'Customizable student profiles and badges'],
+    icon: Users
+  }
+]
+
+const gridFeatures = [
   {
     icon: BarChart3, color: '#4ADE80', title: 'Deep Analytics',
-    desc: 'Track every student\'s rating progression, accuracy scores, mistake patterns, and attendance. Academy admins get full performance dashboards.',
-    points: ['Rating progression charts', 'Accuracy & mistake tracking', 'Attendance reports', 'Coach performance metrics'],
+    desc: 'Track rating progression, accuracy scores, and mistake patterns automatically.',
   },
   {
-    icon: Puzzle, color: '#A78BFA', title: 'Puzzle Trainer',
-    desc: 'Thousands of puzzles organized by theme and difficulty. Students solve daily puzzles and track their puzzle rating separately from game rating.',
-    points: ['Themed puzzle sets', 'Daily puzzle challenges', 'Puzzle rating system', 'Mistake review mode'],
+    icon: Puzzle, color: '#A78BFA', title: 'Themed Puzzle Sets',
+    desc: 'Thousands of puzzles organized by theme and difficulty level.',
   },
   {
-    icon: GraduationCap, color: '#F472B6', title: 'Assignments & Homework',
-    desc: 'Coaches assign PGN-based homework with due dates. Students submit solutions, coaches grade them and leave comments — all in one place.',
-    points: ['PGN assignment uploads', 'Due date management', 'Student submission tracking', 'Grading & feedback system'],
+    icon: GraduationCap, color: '#F472B6', title: 'PGN Homework',
+    desc: 'Assign and grade PGN-based homework with ease.',
   },
   {
-    icon: Users, color: 'var(--amber)', title: 'Parent Dashboard',
-    desc: 'Parents get their own login to track attendance, monitor homework completion, view progress charts, and follow their child\'s rating growth.',
-    points: ['Real-time attendance tracking', 'Homework completion view', 'Progress & rating charts', 'Coach feedback visibility'],
-  },
-  {
-    icon: Shield, color: '#60A5FA', title: 'Anti-Cheat System',
-    desc: 'Automated engine-move detection flags suspicious games for coach review. Keep your tournaments and rated games fair for everyone.',
-    points: ['Automated move analysis', 'Suspicious game flagging', 'Admin review workflow', 'Tournament game monitoring'],
-  },
-  {
-    icon: MessageSquare, color: '#4ADE80', title: 'Integrated Messaging',
-    desc: 'Students, coaches, and parents can message each other directly within the platform. No need for external WhatsApp groups.',
-    points: ['Student-coach direct messages', 'Coach-parent communication', 'Real-time delivery', 'Notification badges'],
+    icon: Shield, color: '#60A5FA', title: 'Anti-Cheat Pro',
+    desc: 'Automated engine detection to keep your events fair.',
   },
 ]
 
 export default function FeaturesPage() {
   return (
-    <main>
+    <div className="bg-surface-50">
       {/* Hero */}
-      <section className="text-center px-6 py-24 max-w-4xl mx-auto">
-        <h1 className="font-display text-5xl lg:text-6xl font-bold mb-6">
-          Every tool your academy needs.<br />
-          <span className="text-gold-gradient">All in one platform.</span>
-        </h1>
-        <p className="text-[var(--text-mid)] text-lg max-w-2xl mx-auto mb-8">
-          From live classrooms to tournament hosting, from parent dashboards to anti-cheat — ChessAcademy Pro covers every aspect of running a professional chess academy.
-        </p>
-        <Link href="/register" className="btn-primary text-base px-8 py-3">Start Free 14-Day Trial</Link>
+      <section className="relative overflow-hidden pt-24 pb-20 lg:pt-32 lg:pb-32 px-6 text-center">
+        <div className="absolute top-0 left-0 w-full h-full bg-gold-gradient opacity-5 -z-10" />
+        <div className="max-w-7xl mx-auto">
+          <h1 className="font-display text-5xl lg:text-6xl font-black mb-8 tracking-tight text-surface-900 leading-[1.1]">
+            Everything you need to<br />
+            <span className="text-gold-gradient">scale your academy.</span>
+          </h1>
+          <p className="text-surface-500 text-lg lg:text-xl max-w-2xl mx-auto mb-12 leading-relaxed font-medium">
+            Stop juggling between multiple apps. Get live classrooms, tournaments, 
+            analytics, and messaging in one unified professional platform.
+          </p>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <Link href="/onboarding" className="btn-primary text-lg px-12 py-5 w-full sm:w-auto shadow-2xl shadow-gold/20 font-black">Start Free Trial</Link>
+            <Link href="/pricing" className="btn-secondary text-lg px-12 py-5 w-full sm:w-auto font-black">View Pricing</Link>
+          </div>
+        </div>
       </section>
 
-      {/* Features grid */}
-      <section className="max-w-7xl mx-auto px-6 pb-24">
-        <div className="grid md:grid-cols-2 gap-8">
-          {features.map((f) => (
-            <div key={f.title} className="card p-8 hover:border-[var(--border)] transition-all">
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${f.color}15` }}>
-                  <f.icon size={22} style={{ color: f.color }} />
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-display text-xl font-bold mb-2">{f.title}</h3>
-                  <p className="text-[var(--text-mid)] text-sm mb-4 leading-relaxed">{f.desc}</p>
-                  <ul className="space-y-1.5">
-                    {f.points.map(p => (
-                      <li key={p} className="flex items-center gap-2 text-xs text-[var(--text-muted)]">
-                        <div className="w-1 h-1 rounded-full flex-shrink-0" style={{ background: f.color }} />
-                        {p}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+      {/* Main Features Detail */}
+      <section className="max-w-7xl mx-auto px-6 py-20 lg:py-24 space-y-24 lg:space-y-32">
+        {mainFeatures.map((f, idx) => (
+          <div key={f.title} className={`flex flex-col lg:items-center gap-16 lg:gap-24 ${idx % 2 === 1 ? 'lg:flex-row-reverse' : 'lg:flex-row'}`}>
+            <div className="flex-1 space-y-8">
+              <div className="w-16 h-16 rounded-[1.25rem] flex items-center justify-center shadow-premium bg-white border border-surface-100">
+                <f.icon size={32} style={{ color: f.color }} />
               </div>
+              <h2 className="text-3xl lg:text-4xl font-extrabold tracking-tight text-surface-900 leading-[1.1]">{f.title}</h2>
+              <p className="text-surface-500 text-xl font-medium leading-relaxed">{f.desc}</p>
+              <ul className="grid sm:grid-cols-1 gap-4">
+                {f.points.map(p => (
+                  <li key={p} className="flex items-center gap-4 text-surface-600 font-bold">
+                    <CheckCircle2 size={24} className="text-gold flex-shrink-0" />
+                    {p}
+                  </li>
+                ))}
+              </ul>
             </div>
-          ))}
+            <div className="flex-1 rounded-[3rem] border border-surface-200 shadow-premium overflow-hidden bg-white hover:border-gold/30 transition-colors group p-2">
+              <Image src={f.image} alt={f.title} width={1000} height={600} className="w-full h-auto rounded-[2.5rem] group-hover:scale-[1.02] transition-transform duration-700" />
+            </div>
+          </div>
+        ))}
+      </section>
+
+      {/* Grid Features */}
+       <section className="bg-white border-y border-surface-200 py-20 lg:py-24 px-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-24">
+            <h2 className="font-display text-4xl lg:text-5xl font-extrabold mb-6 tracking-tight text-surface-900">Wait, there's even more</h2>
+            <p className="text-surface-500 text-xl font-medium max-w-2xl mx-auto">Every detail is meticulously crafted to empower your coaching workflow.</p>
+          </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-10">
+            {gridFeatures.map((f) => (
+              <div key={f.title} className="bg-surface-50 p-10 rounded-[2.5rem] border border-surface-100 hover:border-gold/30 hover:shadow-premium transition-all group">
+                <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-8 bg-white shadow-sm group-hover:scale-110 transition-transform" style={{ background: `${f.color}15` }}>
+                  <f.icon size={26} style={{ color: f.color }} />
+                </div>
+                <h3 className="text-xl font-black mb-4 text-surface-900">{f.title}</h3>
+                <p className="text-surface-500 text-sm font-bold leading-relaxed">{f.desc}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
-      {/* CTA */}
-      <section className="border-t border-[var(--border)] py-24 text-center px-6">
-        <h2 className="font-display text-4xl font-bold mb-4">Ready to transform your academy?</h2>
-        <p className="text-[var(--text-mid)] mb-8">Join 500+ academies already using ChessAcademy Pro</p>
-        <div className="flex items-center justify-center gap-4">
-          <Link href="/register" className="btn-primary text-sm px-8 py-3">Start Free Trial</Link>
-          <Link href="/contact" className="btn-secondary text-sm px-8 py-3">Talk to Sales</Link>
+      {/* Final CTA */}
+      <section className="py-20 lg:py-24 px-6">
+        <div className="max-w-7xl mx-auto bg-surface-900 rounded-[3rem] p-12 lg:p-20 text-center relative overflow-hidden">
+           <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-gold opacity-10 blur-[150px]" />
+           <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-gold opacity-10 blur-[150px]" />
+           <h2 className="text-white text-3xl lg:text-5xl font-extrabold mb-10 tracking-tight leading-[1.1]">Ready to transform your academy?</h2>
+           <p className="text-surface-400 text-lg lg:text-xl mb-14 max-w-2xl mx-auto font-medium">Join the next generation of chess educational institutions.</p>
+           <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
+              <Link href="/onboarding" className="btn-primary px-16 py-6 text-xl font-black shadow-2xl shadow-gold/30 w-full sm:w-auto">Get Started Now</Link>
+              <Link href="/contact" className="btn-secondary border-surface-700 text-white hover:bg-surface-800 px-16 py-6 text-xl font-black w-full sm:w-auto">Talk to Sales</Link>
+           </div>
         </div>
       </section>
-    </main>
+    </div>
   )
 }

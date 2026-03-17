@@ -206,13 +206,28 @@ assignmentsRouter.get('/', async (req, res) => {
     if (studentCtx) {
       params.push(studentCtx);
       const pIdx = params.length;
-      subSelect = `, sub.submitted_at as submitted_at, sub.score as grade, sub.feedback, sub.submission`;
+      subSelect = `, sub.submitted_at as submitted_at, sub.graded_at, sub.score as grade, sub.feedback, sub.submission`;
       subJoin = `LEFT JOIN LATERAL (
-        SELECT sub2.submitted_at, sub2.score, sub2.feedback, sub2.submission
+        SELECT sub2.submitted_at, sub2.graded_at, sub2.score, sub2.feedback, sub2.submission
         FROM assignment_submissions sub2
         WHERE sub2.assignment_id = a.id AND sub2.student_id = $${pIdx}
         ORDER BY sub2.submitted_at DESC LIMIT 1
       ) sub ON true`;
+    }
+
+    const { status } = req.query;
+    if (status && studentCtx) {
+      const now = new Date();
+      if (status === 'pending') {
+        conditions.push('sub.submitted_at IS NULL');
+        conditions.push('(a.due_date IS NULL OR a.due_date > NOW())');
+      } else if (status === 'submitted') {
+        conditions.push('sub.submitted_at IS NOT NULL AND sub.graded_at IS NULL');
+      } else if (status === 'graded') {
+        conditions.push('sub.graded_at IS NOT NULL');
+      } else if (status === 'overdue') {
+        conditions.push('sub.submitted_at IS NULL AND a.due_date IS NOT NULL AND a.due_date < NOW()');
+      }
     }
 
     const result = await query(

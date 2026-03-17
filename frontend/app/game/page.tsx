@@ -3,10 +3,10 @@
 import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
 import { Chessboard } from 'react-chessboard'
 import { Chess } from 'chess.js'
-import { useAuth } from '@/lib/auth-context'
+import { useAuth } from '@/src/lib/auth-context'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { gamesAPI } from '@/lib/api'
-import { getSocket } from '@/lib/hooks/useSocket'
+import { gamesAPI } from '@/src/lib/api'
+import { getSocket } from '@/src/lib/hooks/useSocket'
 import { Flag, Handshake, RotateCcw, ChevronLeft, ChevronRight, Loader2, Wifi, WifiOff, Trophy } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -54,12 +54,25 @@ function GameContent() {
   const isMyTurn = gameState
     ? (chess.turn() === 'w' && user?.id === gameState.whiteId) ||
       (chess.turn() === 'b' && user?.id === gameState.blackId)
-    : false
+    : !gameId; // In Practice Mode (no gameId), it's always "my turn" to move either side
   const orientation: 'white' | 'black' = gameState?.blackId === user?.id ? 'black' : 'white'
+
+  // Check for active/waiting game to reconnect
+  useEffect(() => {
+    if (gameId || !user) return
+    gamesAPI.list({ limit: 5 }).then((res: any) => {
+      const games = res.data.games || []
+      const ongoing = games.find((g: any) => g.status === 'active' || g.status === 'waiting')
+      if (ongoing) {
+        toast('Reconnecting to game...', { icon: '🔄', duration: 3000 })
+        router.push(`/game?id=${ongoing.id}`)
+      }
+    }).catch(() => {})
+  }, [gameId, user, router])
 
   // Connect socket & join game
   useEffect(() => {
-    if (!token || !gameId) return
+    if (!token) return
     const socket = getSocket(token)
 
     socket.on('connect', () => setConnected(true))
@@ -99,7 +112,9 @@ function GameContent() {
       router.push(`/game?id=${gid}`)
     })
 
-    socket.emit('game:join', { gameId })
+    if (gameId) {
+      socket.emit('game:join', { gameId })
+    }
 
     return () => {
       socket.off('game:state')
@@ -153,11 +168,16 @@ function GameContent() {
 
   // Timer
   const clearTimer = () => { if (timerRef.current) clearInterval(timerRef.current) }
+  const turnRef = useRef(chess.turn())
+  turnRef.current = chess.turn()
+
   useEffect(() => {
-    if (gameOver || gameState?.status !== 'active') return
+    if (gameOver || (gameId && gameState?.status !== 'active')) return;
+    
     clearTimer()
     timerRef.current = setInterval(() => {
-      if (chess.turn() === 'w') {
+      // Use the turn at the time of interval execution
+      if (turnRef.current === 'w') {
         setWhiteTimeMs(t => {
           if (t <= 1000) { handleTimeout('white'); return 0 }
           return t - 1000
@@ -170,12 +190,36 @@ function GameContent() {
       }
     }, 1000)
     return clearTimer
-  }, [chess, gameOver, gameState?.status])
+  }, [gameOver, gameState?.status, gameId]) // Removed chess from deps to prevent reset on every move
+
+  async function savePracticeGame(result: { winner: string | null; reason: string }, finalFen?: string, finalPgn?: string) {
+    if (gameId) return; // Only save if actually in practice mode
+    try {
+      await gamesAPI.savePractice({
+        fen: finalFen || chess.fen(),
+        pgn: finalPgn || chess.pgn(),
+        timeControl: '10+0',
+        result,
+        whiteName: user?.name || 'Player 1',
+        blackName: 'Opponent'
+      });
+      toast.success('Game saved to history');
+    } catch (err) {
+      console.error('Failed to save practice game:', err);
+    }
+  }
 
   function handleTimeout(color: string) {
     clearTimer()
     if (token && gameId) {
       getSocket(token).emit('game:timeout', { gameId, color })
+    } else if (!gameId) {
+      const res = {
+        winner: color === 'white' ? 'black' : 'white',
+        reason: 'timeout'
+      };
+      setGameOver(res);
+      savePracticeGame(res, chess.fen(), chess.pgn());
     }
   }
 
@@ -203,17 +247,31 @@ function GameContent() {
       setChess(g)
       setCurrentMoveIdx(prev => prev + 1)
       if (g.isGameOver()) {
-        setGameOver({
+        const res = {
           winner: g.isCheckmate() ? (g.turn() === 'w' ? 'black' : 'white') : null,
           reason: g.isCheckmate() ? 'checkmate' : g.isStalemate() ? 'stalemate' : 'draw',
-        })
+        };
+        setGameOver(res);
+        savePracticeGame(res, g.fen(), g.pgn());
       }
     }
     return true
   }, [chess, isMyTurn, replayIdx, gameOver, token, gameId, whiteTimeMs, blackTimeMs])
 
   const handleResign = async () => {
-    if (!gameId || !token) return
+    if (!gameId) {
+      if (confirm('Resign this practice game?')) {
+        const res = {
+          winner: chess.turn() === 'w' ? 'black' : 'white',
+          reason: 'resignation'
+        };
+        setGameOver(res);
+        clearTimer();
+        savePracticeGame(res, chess.fen(), chess.pgn());
+      }
+      return;
+    }
+    if (!token) return
     if (!confirm('Resign this game?')) return
     try {
       await gamesAPI.resign(gameId)
@@ -224,7 +282,19 @@ function GameContent() {
   }
 
   const handleDrawOffer = () => {
-    if (!gameId || !token) return
+    if (!gameId) {
+      if (confirm('End practice game with a draw?')) {
+        const res = {
+          winner: null,
+          reason: 'agreed_draw'
+        };
+        setGameOver(res);
+        clearTimer();
+        savePracticeGame(res, chess.fen(), chess.pgn());
+      }
+      return;
+    }
+    if (!token) return
     getSocket(token).emit('game:offer_draw', { gameId })
     toast('Draw offer sent')
   }
@@ -274,8 +344,8 @@ function GameContent() {
         <div className="space-y-2">
           {/* Black player */}
           <PlayerCard
-            name={gameState ? (orientation === 'white' ? gameState.blackName : gameState.whiteName) : 'Waiting...'}
-            rating={gameState ? (orientation === 'white' ? gameState.blackRating : gameState.whiteRating) : '—'}
+            name={gameState ? (orientation === 'white' ? gameState.blackName : gameState.whiteName) : (gameId ? 'Waiting...' : 'Opponent')}
+            rating={gameState ? (orientation === 'white' ? gameState.blackRating : gameState.whiteRating) : (gameId ? '—' : '1200')}
             timeMs={orientation === 'white' ? blackTimeMs : whiteTimeMs}
             active={chess.turn() === (orientation === 'white' ? 'b' : 'w')}
             side={orientation === 'white' ? 'black' : 'white'}
@@ -297,7 +367,7 @@ function GameContent() {
 
           {/* White player */}
           <PlayerCard
-            name={gameState ? (orientation === 'white' ? gameState.whiteName : gameState.blackName) : (user?.name || 'You')}
+            name={gameState ? (orientation === 'white' ? gameState.whiteName : gameState.blackName) : (user?.name || 'Player 1')}
             rating={gameState ? (orientation === 'white' ? gameState.whiteRating : gameState.blackRating) : (user?.rating || 1200)}
             timeMs={orientation === 'white' ? whiteTimeMs : blackTimeMs}
             active={chess.turn() === (orientation === 'white' ? 'w' : 'b')}
@@ -309,13 +379,15 @@ function GameContent() {
         <div className="space-y-3">
 
           {/* Connection */}
-          <div className="card px-4 py-2.5 flex items-center justify-between">
-            <span className="text-xs text-[var(--text-muted)]">{gameId ? `Game ${gameId.slice(0, 8)}...` : 'Practice Mode'}</span>
-            <div className={`flex items-center gap-1.5 text-xs ${connected ? 'text-green-400' : 'text-red-400'}`}>
-              {connected ? <Wifi size={12} /> : <WifiOff size={12} />}
-              {connected ? 'Live' : 'Offline'}
+          {gameId && (
+            <div className="card px-4 py-2.5 flex items-center justify-between">
+              <span className="text-xs text-[var(--text-muted)]">Game {gameId.slice(0, 8)}...</span>
+              <div className={`flex items-center gap-1.5 text-xs ${connected ? 'text-green-400' : 'text-red-400'}`}>
+                {connected ? <Wifi size={12} /> : <WifiOff size={12} />}
+                {connected ? 'Live' : 'Offline'}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Draw offer */}
           {drawOffer && (
@@ -410,7 +482,7 @@ function GameContent() {
           )}
 
           {/* Waiting */}
-          {!gameOver && gameState?.status === 'waiting' && (
+          {!gameOver && gameId && gameState?.status === 'waiting' && (
             <div className="card p-5 text-center animate-fade-in">
               <Loader2 className="mx-auto mb-2 text-[var(--amber)] animate-spin" size={24} />
               <div className="text-sm font-medium">Waiting for opponent...</div>

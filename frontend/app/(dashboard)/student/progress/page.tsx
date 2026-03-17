@@ -1,6 +1,6 @@
 'use client'
-import { useAuth } from '@/lib/auth-context'
-import { useUserStats } from '@/lib/hooks'
+import { useAuth } from '@/src/lib/auth-context'
+import { useUserStats } from '@/src/lib/hooks'
 import { PageLoading } from '@/components/shared/States'
 import { TrendingUp, Star, Swords, Puzzle, Target, Zap } from 'lucide-react'
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
@@ -30,8 +30,8 @@ export default function StudentProgressPage() {
 
   const statCards = [
     { label: 'Current Rating', value: user?.rating || 1200, icon: Star, color: 'var(--amber)', change: '+25 this week' },
-    { label: 'Games Played', value: stats?.games_played || 0, icon: Swords, color: '#1D4ED8', change: '+3 this week' },
-    { label: 'Puzzles Solved', value: stats?.puzzles_solved || 0, icon: Puzzle, color: '#15803D', change: '+12 this week' },
+    { label: 'Games Played', value: stats?.games?.total || 0, icon: Swords, color: '#1D4ED8', change: 'Updated' },
+    { label: 'Puzzles Solved', value: stats?.puzzles?.correct || 0, icon: Puzzle, color: '#15803D', change: 'Updated' },
     { label: 'Study Streak', value: `${stats?.streak || 0} days`, icon: Zap, color: '#7C3AED', change: 'Keep going!' },
   ]
 

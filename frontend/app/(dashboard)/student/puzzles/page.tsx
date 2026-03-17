@@ -2,7 +2,7 @@
 import { useState, useCallback, useRef } from "react";
 import { Chessboard } from "react-chessboard";
 import { Chess } from "chess.js";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth } from "@/src/lib/auth-context";
 import {
   useRandomPuzzle,
   useSubmitPuzzle,
@@ -12,7 +12,7 @@ import {
   useSubmitMcq,
   usePuzzleLeaderboard,
   useMyPuzzleRank,
-} from "@/lib/hooks";
+} from "@/src/lib/hooks";
 import { PageLoading } from "@/components/shared/States";
 import Avatar from "@/components/shared/Avatar";
 import {
@@ -82,7 +82,8 @@ function LeaderboardTab({
       </div>
     );
 
-  const myRankPos = myRank ? lb.findIndex((r) => r.user_id === myId) + 1 : null;
+  const myRankPos = myRank && lb.length > 0 ? lb.findIndex((r) => r.user_id === myId) + 1 : null;
+  const displayRank = myRank?.rank || (myRankPos && myRankPos > 0 ? myRankPos : null);
 
   return (
     <div className="space-y-4">
@@ -95,19 +96,26 @@ function LeaderboardTab({
             border: "1px solid rgba(200,150,30,0.3)",
           }}
         >
-          <p
-            className="text-xs font-semibold mb-2"
-            style={{ color: "var(--amber)" }}
-          >
-            YOUR RANKING
-          </p>
+          <div className="flex items-center justify-between mb-2">
+            <p
+              className="text-xs font-semibold"
+              style={{ color: "var(--amber)" }}
+            >
+              YOUR RANKING
+            </p>
+            {myRank.academy_name && (
+              <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full" style={{ background: 'rgba(200,150,30,0.1)', color: 'var(--amber)' }}>
+                {myRank.academy_name}
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-3 flex-wrap">
             <div className="text-center">
               <div
                 className="font-display text-3xl font-bold"
                 style={{ color: "var(--amber)" }}
               >
-                #{myRankPos || "—"}
+                #{displayRank || "—"}
               </div>
               <div className="text-xs" style={{ color: "var(--text-muted)" }}>
                 Rank
@@ -887,7 +895,7 @@ export default function PuzzlesPage() {
             className="font-display text-2xl font-bold flex items-center gap-1"
             style={{ color: "#F97316" }}
           >
-            <Trophy size={18} />#{myRank ? myRank.rank || "—" : "—"}
+            <Trophy size={18} />#{myRank?.rank || "—"}
           </div>
           <div className="text-xs" style={{ color: "var(--text-muted)" }}>
             Your Rank

@@ -3,7 +3,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Crown, ArrowLeft, Loader2, CheckCircle2 } from "lucide-react";
 import toast from "react-hot-toast";
-import { authAPI } from "@/lib/api";
+import { authAPI } from "@/src/lib/api";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");

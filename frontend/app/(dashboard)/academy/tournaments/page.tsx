@@ -1,11 +1,11 @@
 "use client";
 import { useState } from "react";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth } from "@/src/lib/auth-context";
 import {
   useTournaments,
   useCreateTournament,
   useCancelTournament,
-} from "@/lib/hooks";
+} from "@/src/lib/hooks";
 import { PageLoading, EmptyState } from "@/components/shared/States";
 import Modal from "@/components/shared/Modal";
 import Link from "next/link";

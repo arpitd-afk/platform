@@ -1,8 +1,8 @@
 'use client'
 import { useState } from 'react'
-import { useUsers } from '@/lib/hooks'
+import { useUsers } from '@/src/lib/hooks'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { usersAPI } from '@/lib/api'
+import { usersAPI } from '@/src/lib/api'
 import { PageLoading, EmptyState } from '@/components/shared/States'
 import CreateUserModal from '@/components/shared/CreateUserModal'
 import Avatar from '@/components/shared/Avatar'
@@ -111,10 +111,21 @@ export default function CoachStudentsPage() {
                 <button onClick={() => router.push(`/coach/analysis?student=${s.id}`)} className="btn-secondary flex-1 text-xs py-2 flex items-center justify-center gap-1.5">
                   <TrendingUp size={12} /> Progress
                 </button>
-                <button onClick={() => setLinking(s)} className="btn-secondary flex-1 text-xs py-2 flex items-center justify-center gap-1.5" style={{ color: '#1D4ED8' }}>
-                  <Link2 size={12} /> Link Parent
+                <button 
+                  onClick={() => setLinking(s)} 
+                  className="btn-secondary flex-1 text-xs py-2 flex items-center justify-center gap-1.5" 
+                  style={{ color: s.parents?.[0]?.email ? '#15803D' : '#1D4ED8' }}
+                >
+                  <Link2 size={12} /> {s.parents?.[0]?.email ? 'Parent Linked' : 'Link Parent'}
                 </button>
               </div>
+              {s.parents?.[0] && (
+                <div className="mt-2 p-2 rounded bg-green-50 border border-green-100">
+                  <div className="text-[10px] font-semibold text-green-700 uppercase tracking-wider">Linked Parent</div>
+                  <div className="text-xs font-medium text-green-900 truncate">{s.parents[0].name || 'N/A'}</div>
+                  <div className="text-[10px] text-green-700 truncate">{s.parents[0].email}</div>
+                </div>
+              )}
             </div>
           ))}
         </div>
