@@ -56,7 +56,7 @@ export default function StudentDashboard() {
       href: "/student/puzzles",
       icon: Puzzle,
       label: "Puzzles",
-      desc: `${stats?.puzzles_solved || 0} solved`,
+      desc: `${stats?.puzzles?.correct || 0} solved`,
       color: "#15803D",
       bg: "#DCFCE7",
     },

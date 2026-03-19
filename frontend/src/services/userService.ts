@@ -137,6 +137,8 @@ export class UserService {
             white_games: { where: { status: "completed" } },
             black_games: { where: { status: "completed" } },
             puzzle_attempts: true,
+            custom_puzzle_attempts: true,
+            mcq_attempts: true,
           },
         },
       },
@@ -160,9 +162,11 @@ export class UserService {
       },
     });
 
-    const correctPuzzles = await prisma.puzzleAttempt.count({
-      where: { user_id: id, is_correct: true },
-    });
+    const [correctLichess, correctCustom, correctMcq] = await Promise.all([
+      prisma.puzzleAttempt.count({ where: { user_id: id, is_correct: true } }),
+      prisma.customPuzzleAttempt.count({ where: { user_id: id, is_correct: true } }),
+      prisma.mcqAttempt.count({ where: { user_id: id, is_correct: true } }),
+    ]);
 
     const stats: any = {
       rating: user.rating,
@@ -171,8 +175,17 @@ export class UserService {
         wins: winsCount,
       },
       puzzles: {
-        total: user._count.puzzle_attempts,
-        correct: correctPuzzles,
+        lichess_total: user._count.puzzle_attempts,
+        lichess_correct: correctLichess,
+        custom_total: user._count.custom_puzzle_attempts,
+        custom_correct: correctCustom,
+        mcq_total: user._count.mcq_attempts,
+        mcq_correct: correctMcq,
+        total:
+          user._count.puzzle_attempts +
+          user._count.custom_puzzle_attempts +
+          user._count.mcq_attempts,
+        correct: correctLichess + correctCustom + correctMcq,
       },
     };
 
