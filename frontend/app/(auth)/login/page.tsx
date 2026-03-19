@@ -145,7 +145,7 @@ export default function LoginPage() {
           <div className="space-y-6">
             <h2 className="text-white text-4xl lg:text-5xl font-extrabold leading-[1.1] tracking-tight">
               Empowering the <br />
-              <span className="text-gold-gradient">world's best</span>{" "}
+              <span className="text-gold-gradient">world&apos;s best</span>{" "}
               academies.
             </h2>
             <p className="text-surface-400 text-lg font-medium leading-relaxed max-w-sm">
@@ -259,6 +259,7 @@ export default function LoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
+                  autoComplete="username"
                 />
               </div>
             </div>
@@ -283,6 +284,7 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
+                  autoComplete="current-password"
                 />
                 <button
                   type="button"

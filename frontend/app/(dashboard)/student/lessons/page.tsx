@@ -391,7 +391,7 @@ export default function LessonsPage() {
               className="text-xs mt-2 text-center"
               style={{ color: "#15803D" }}
             >
-              🎉 You've completed all lessons!
+              🎉 You&apos;ve completed all lessons!
             </p>
           )}
         </div>

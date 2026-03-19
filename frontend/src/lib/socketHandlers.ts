@@ -5,7 +5,6 @@ import { redisSession } from "../lib/redis";
 import logger from "../lib/logger";
 import config from "../lib/config";
 import { AuthenticatedSocket, GameState } from "../types/socket";
-import { query } from "../lib/db";
 
 const JWT_SECRET = config.jwtSecret;
 

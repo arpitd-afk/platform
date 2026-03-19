@@ -19,6 +19,9 @@ const port = config.port || 3000;
 app.prepare().then(async () => {
   const server = express();
   const httpServer = createServer(server);
+  
+  // Explicitly serve public folder for static assets (like stockfish.js/wasm)
+  server.use(express.static('public'));
 
   // Initialize Socket.io
   const io = new Server(httpServer, {

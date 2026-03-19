@@ -255,7 +255,7 @@ function PlanModal({ plan, onClose }: { plan?: any; onClose: () => void }) {
                 Plan Active
               </p>
               <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                Inactive plans won't appear in the academy billing page
+                Inactive plans won&apos;t appear in the academy billing page
               </p>
             </div>
             <button onClick={() => up("is_active", !form.is_active)}>

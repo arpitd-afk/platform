@@ -1,88 +1,183 @@
-import { v4 as uuidv4 } from 'uuid';
-import { query } from '../lib/db';
+import { prisma } from "../lib/prisma";
+import { Announcement } from "@prisma/client";
 
 export class AnnouncementService {
-  static async listAnnouncements(params: { academyId: string, userId: string, role: string, limit?: number }) {
+  static async listAnnouncements(params: {
+    academyId: string;
+    userId: string;
+    role: string;
+    limit?: number;
+  }) {
     const { academyId, userId, role, limit = 20 } = params;
-    const result = await query(
-      `SELECT a.*, u.name as author_name, u.avatar as author_avatar, u.role as author_role
-       FROM announcements a
-       LEFT JOIN users u ON a.author_id = u.id
-       WHERE (a.academy_id = $1 OR (a.academy_id IS NULL AND a.author_id = $2))
-         AND (a.target_role IS NULL OR a.target_role = $3)
-       ORDER BY a.is_pinned DESC, a.created_at DESC
-       LIMIT $4`,
-      [academyId, userId, role, limit]
+
+    const announcements = await prisma.announcement.findMany({
+      where: {
+        OR: [
+          { academy_id: academyId },
+          { academy_id: null, author_id: userId },
+        ],
+        AND: [
+          {
+            OR: [{ target_role: null }, { target_role: role }],
+          },
+        ],
+      },
+      include: {
+        author: {
+          select: {
+            name: true,
+            avatar: true,
+            role: true,
+          },
+        },
+      },
+      orderBy: [{ is_pinned: "desc" }, { created_at: "desc" }],
+      take: limit,
+    });
+
+    return announcements.map(
+      (
+        a: Announcement & {
+          author?: { name: string; avatar: string | null; role: string } | null;
+        },
+      ) => ({
+        ...a,
+        author_name: a.author?.name,
+        author_avatar: a.author?.avatar,
+        author_role: a.author?.role,
+      }),
     );
-    return result.rows;
   }
 
   static async listAllAnnouncements(academyId: string, userId: string) {
-    const result = await query(
-      `SELECT a.*, u.name as author_name, u.avatar as author_avatar,
-        (SELECT COUNT(*) FROM users WHERE academy_id = a.academy_id
-          AND (a.target_role IS NULL OR role = a.target_role)) as reach
-       FROM announcements a
-       LEFT JOIN users u ON a.author_id = u.id
-       WHERE (a.academy_id = $1 OR (a.academy_id IS NULL AND a.author_id = $2))
-       ORDER BY a.is_pinned DESC, a.created_at DESC`,
-      [academyId, userId]
+    const announcements = await prisma.announcement.findMany({
+      where: {
+        OR: [
+          { academy_id: academyId },
+          { academy_id: null, author_id: userId },
+        ],
+      },
+      include: {
+        author: {
+          select: {
+            name: true,
+            avatar: true,
+          },
+        },
+      },
+      orderBy: [{ is_pinned: "desc" }, { created_at: "desc" }],
+    });
+
+    // Reach count: users in academy matching target_role
+    return Promise.all(
+      announcements.map(
+        async (
+          a: Announcement & {
+            author?: { name: string; avatar: string | null } | null;
+          },
+        ) => {
+          const reach = await prisma.user.count({
+            where: {
+              academy_id: a.academy_id,
+              OR: [
+                { role: a.target_role || undefined },
+                { id: { not: undefined } }, // placeholder for null target_role
+              ],
+            },
+          });
+
+          // Correcting reach logic for nullable target_role
+          const filteredReach = await prisma.user.count({
+            where: {
+              academy_id: a.academy_id,
+              role: a.target_role || undefined,
+              is_active: true,
+            },
+          });
+
+          return {
+            ...a,
+            author_name: a.author?.name,
+            author_avatar: a.author?.avatar,
+            reach: a.target_role
+              ? filteredReach
+              : await prisma.user.count({
+                  where: { academy_id: a.academy_id, is_active: true },
+                }),
+          };
+        },
+      ),
     );
-    return result.rows;
   }
 
   static async createAnnouncement(data: any, currentUser: any) {
     const { title, body, targetRole = null, isPinned = false } = data;
-    const id = uuidv4();
-    await query(
-      `INSERT INTO announcements (id, academy_id, author_id, title, body, target_role, is_pinned, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
-      [id, currentUser.academyId, currentUser.id, title, body, targetRole || null, isPinned]
-    );
+
+    const announcement = await prisma.announcement.create({
+      data: {
+        academy_id: currentUser.academyId,
+        author_id: currentUser.id,
+        title,
+        body,
+        target_role: targetRole,
+        is_pinned: isPinned,
+      },
+    });
 
     // Notifications
     try {
-      const audience = await query(
-        `SELECT id FROM users
-         WHERE academy_id=$1 AND is_active=true
-           AND (${targetRole ? 'role=$2' : '$2::text IS NULL'})`,
-        [currentUser.academyId, targetRole]
-      );
-      for (const u of audience.rows) {
-        await query(
-          "INSERT INTO notifications (id, user_id, type, title, body, created_at) VALUES (gen_random_uuid(), $1, 'system', $2, $3, NOW())",
-          [u.id, `New Announcement: ${title}`, body.slice(0, 100) + (body.length > 100 ? '...' : '')]
-        );
+      const audience = await prisma.user.findMany({
+        where: {
+          academy_id: currentUser.academyId,
+          is_active: true,
+          role: targetRole || undefined,
+        },
+        select: { id: true },
+      });
+
+      const notificationsData = audience.map((u: { id: string }) => ({
+        user_id: u.id,
+        type: "system",
+        title: `New Announcement: ${title}`,
+        body: body.slice(0, 100) + (body.length > 100 ? "..." : ""),
+      }));
+
+      if (notificationsData.length > 0) {
+        await prisma.notification.createMany({
+          data: notificationsData,
+        });
       }
     } catch (err: any) {
-      console.error('[Announcements Notif Error]', err.message);
+      console.error("[Announcements Notif Error]", err.message);
     }
 
-    return id;
+    return announcement.id;
   }
 
   static async updateAnnouncement(id: string, data: any, academyId: string) {
     const { title, body, targetRole, isPinned } = data;
-    await query(
-      `UPDATE announcements SET
-         title       = COALESCE($1, title),
-         body        = COALESCE($2, body),
-         target_role = $3,
-         is_pinned   = COALESCE($4, is_pinned)
-       WHERE id=$5 AND academy_id=$6`,
-      [title, body, targetRole ?? null, isPinned, id, academyId]
-    );
+    await prisma.announcement.update({
+      where: { id },
+      data: {
+        title: title !== undefined ? title : undefined,
+        body: body !== undefined ? body : undefined,
+        target_role: targetRole,
+        is_pinned: isPinned !== undefined ? isPinned : undefined,
+      },
+    });
   }
 
   static async deleteAnnouncement(id: string, academyId: string) {
-    await query('DELETE FROM announcements WHERE id=$1 AND academy_id=$2', [id, academyId]);
+    await prisma.announcement.delete({
+      where: { id },
+    });
   }
 
   static async setPinned(id: string, pinned: boolean, academyId: string) {
-    await query(
-      'UPDATE announcements SET is_pinned=$1 WHERE id=$2 AND academy_id=$3',
-      [pinned, id, academyId]
-    );
+    await prisma.announcement.update({
+      where: { id },
+      data: { is_pinned: pinned },
+    });
   }
 }
 

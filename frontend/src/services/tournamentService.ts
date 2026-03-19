@@ -1,13 +1,8 @@
-import { v4 as uuidv4 } from "uuid";
-import { query, transaction } from "../lib/db";
+import { prisma } from "../lib/prisma";
 import logger from "../lib/logger";
-import {
-  Tournament,
-  TournamentMatch,
-  TournamentStanding,
-} from "../types/models";
-import { ActivityLogService } from "./activityLogService";
 import { NotificationService } from "./notificationService";
+import { ActivityLogService } from "./activityLogService";
+import { Prisma } from "@prisma/client";
 
 export class TournamentService {
   /**
@@ -152,40 +147,28 @@ export class TournamentService {
   /**
    * Rollback match scores in standings
    */
-  static async rollbackMatchScores(m: any) {
+  static async rollbackMatchScores(tx: any, m: any) {
     if (!m.white_id || m.is_bye) return;
-    const ws = parseFloat(m.white_score) || 0;
-    const bs = parseFloat(m.black_score) || 0;
+    const ws = Number(m.white_score) || 0;
+    const bs = Number(m.black_score) || 0;
 
     if (m.white_id) {
-      await query(
-        `UPDATE tournament_standings SET score = GREATEST(COALESCE(score, 0) - $1, 0),
-          wins = GREATEST(COALESCE(wins, 0) - $2, 0), draws = GREATEST(COALESCE(draws, 0) - $3, 0), losses = GREATEST(COALESCE(losses, 0) - $4, 0)
-         WHERE tournament_id=$5 AND player_id=$6`,
-        [
-          ws,
-          ws === 1 ? 1 : 0,
-          ws === 0.5 ? 1 : 0,
-          ws === 0 ? 1 : 0,
-          m.tournament_id,
-          m.white_id,
-        ],
-      );
+      await tx.$executeRaw`
+        UPDATE tournament_standings SET score = GREATEST(COALESCE(score, 0) - ${ws}, 0),
+          wins = GREATEST(COALESCE(wins, 0) - ${ws === 1 ? 1 : 0}, 0), 
+          draws = GREATEST(COALESCE(draws, 0) - ${ws === 0.5 ? 1 : 0}, 0), 
+          losses = GREATEST(COALESCE(losses, 0) - ${ws === 0 ? 1 : 0}, 0)
+        WHERE tournament_id = ${m.tournament_id}::uuid AND player_id = ${m.white_id}::uuid
+      `;
     }
     if (m.black_id) {
-      await query(
-        `UPDATE tournament_standings SET score = GREATEST(COALESCE(score, 0) - $1, 0),
-          wins = GREATEST(COALESCE(wins, 0) - $2, 0), draws = GREATEST(COALESCE(draws, 0) - $3, 0), losses = GREATEST(COALESCE(losses, 0) - $4, 0)
-         WHERE tournament_id=$5 AND player_id=$6`,
-        [
-          bs,
-          bs === 1 ? 1 : 0,
-          bs === 0.5 ? 1 : 0,
-          bs === 0 ? 1 : 0,
-          m.tournament_id,
-          m.black_id,
-        ],
-      );
+      await tx.$executeRaw`
+        UPDATE tournament_standings SET score = GREATEST(COALESCE(score, 0) - ${bs}, 0),
+          wins = GREATEST(COALESCE(wins, 0) - ${bs === 1 ? 1 : 0}, 0), 
+          draws = GREATEST(COALESCE(draws, 0) - ${bs === 0.5 ? 1 : 0}, 0), 
+          losses = GREATEST(COALESCE(losses, 0) - ${bs === 0 ? 1 : 0}, 0)
+        WHERE tournament_id = ${m.tournament_id}::uuid AND player_id = ${m.black_id}::uuid
+      `;
     }
   }
 
@@ -193,19 +176,25 @@ export class TournamentService {
    * Recalculate Buchholz tiebreak
    */
   static async recalcBuchholz(tournamentId: string) {
-    const matches = await query(
-      `SELECT white_id, black_id FROM tournament_matches WHERE tournament_id=$1 AND is_bye=false AND status='completed'`,
-      [tournamentId],
-    );
-    const scores = await query(
-      `SELECT player_id, score FROM tournament_standings WHERE tournament_id=$1`,
-      [tournamentId],
-    );
+    const matches = await prisma.tournamentMatch.findMany({
+      where: {
+        tournament_id: tournamentId,
+        is_bye: false,
+        status: "completed",
+      },
+      select: { white_id: true, black_id: true },
+    });
+
+    const standings = await prisma.tournamentStanding.findMany({
+      where: { tournament_id: tournamentId },
+      select: { player_id: true, score: true },
+    });
+
     const scoreMap: Record<string, number> = {};
-    for (const s of scores.rows) scoreMap[s.player_id] = parseFloat(s.score);
+    for (const s of standings) scoreMap[s.player_id] = Number(s.score);
 
     const buchholz: Record<string, number> = {};
-    for (const m of matches.rows) {
+    for (const m of matches) {
       if (m.white_id && m.black_id) {
         buchholz[m.white_id] =
           (buchholz[m.white_id] || 0) + (scoreMap[m.black_id] || 0);
@@ -213,29 +202,45 @@ export class TournamentService {
           (buchholz[m.black_id] || 0) + (scoreMap[m.white_id] || 0);
       }
     }
-    for (const [pid, buch] of Object.entries(buchholz)) {
-      await query(
-        `UPDATE tournament_standings SET tiebreak1=$1 WHERE tournament_id=$2 AND player_id=$3`,
-        [buch, tournamentId, pid],
-      );
-    }
+
+    await prisma.$transaction(
+      Object.entries(buchholz).map(([pid, buch]) =>
+        prisma.tournamentStanding.update({
+          where: {
+            tournament_id_player_id: {
+              tournament_id: tournamentId,
+              player_id: pid,
+            },
+          },
+          data: { tiebreak1: buch },
+        }),
+      ),
+    );
   }
 
   /**
    * Re-rank tournament standings
    */
   static async rerank(tournamentId: string) {
-    const standings = await query(
-      `SELECT player_id FROM tournament_standings
-       WHERE tournament_id=$1 ORDER BY score DESC, tiebreak1 DESC`,
-      [tournamentId],
+    const standings = await prisma.tournamentStanding.findMany({
+      where: { tournament_id: tournamentId },
+      orderBy: [{ score: "desc" }, { tiebreak1: "desc" }],
+      select: { player_id: true },
+    });
+
+    await prisma.$transaction(
+      standings.map((s, i) =>
+        prisma.tournamentStanding.update({
+          where: {
+            tournament_id_player_id: {
+              tournament_id: tournamentId,
+              player_id: s.player_id,
+            },
+          },
+          data: { rank: i + 1 },
+        }),
+      ),
     );
-    for (let i = 0; i < standings.rows.length; i++) {
-      await query(
-        `UPDATE tournament_standings SET rank=$1 WHERE tournament_id=$2 AND player_id=$3`,
-        [i + 1, tournamentId, standings.rows[i].player_id],
-      );
-    }
   }
 
   static async getTournaments(params: {
@@ -246,71 +251,68 @@ export class TournamentService {
     limit?: number;
   }) {
     const { academyId, status, userId, page = 1, limit = 20 } = params;
-    const offset = (page - 1) * limit;
-    const conditions = ["1=1"];
-    const queryParams: any[] = [];
+    const skip = (page - 1) * limit;
 
-    if (status) {
-      queryParams.push(status);
-      conditions.push(`t.status = $${queryParams.length}`);
-    }
-    if (academyId) {
-      queryParams.push(academyId);
-      conditions.push(`t.academy_id = $${queryParams.length}`);
-    }
+    const where: any = {};
+    if (status) where.status = status;
+    if (academyId) where.academy_id = academyId;
 
-    queryParams.push(userId);
-    const userIdxParam = queryParams.length;
-    queryParams.push(limit, offset);
+    const tournaments = await prisma.tournament.findMany({
+      where,
+      include: {
+        academy: { select: { name: true } },
+        _count: { select: { registrations: true } },
+        registrations: {
+          where: { player_id: userId },
+          select: { player_id: true },
+          take: 1,
+        },
+      },
+      orderBy: { starts_at: "asc" },
+      take: limit,
+      skip,
+    });
 
-    const result = await query(
-      `SELECT t.*, a.name as academy_name,
-        COUNT(DISTINCT tr.player_id) as registered_count,
-        EXISTS (
-          SELECT 1 FROM tournament_registrations ur
-          WHERE ur.tournament_id = t.id AND ur.player_id = $${userIdxParam}
-        ) as is_registered
-       FROM tournaments t
-       LEFT JOIN academies a ON t.academy_id = a.id
-       LEFT JOIN tournament_registrations tr ON tr.tournament_id = t.id
-       WHERE ${conditions.join(" AND ")}
-       GROUP BY t.id, a.name
-       ORDER BY t.starts_at ASC
-       LIMIT $${queryParams.length - 1} OFFSET $${queryParams.length}`,
-      queryParams,
-    );
-
-    return result.rows;
+    return tournaments.map((t) => ({
+      ...t,
+      academy_name: t.academy?.name,
+      registered_count: t._count.registrations,
+      is_registered: t.registrations.length > 0,
+    }));
   }
 
   static async getTournamentById(id: string) {
-    const [tResult, regResult] = await Promise.all([
-      query(
-        `SELECT t.*, a.name as academy_name, u.name as organizer_name,
-          COUNT(DISTINCT tr.player_id) as registered_count
-         FROM tournaments t
-         LEFT JOIN academies a ON t.academy_id = a.id
-         LEFT JOIN users u ON t.organizer_id = u.id
-         LEFT JOIN tournament_registrations tr ON tr.tournament_id = t.id
-         WHERE t.id = $1
-         GROUP BY t.id, a.name, u.name`,
-        [id],
-      ),
-      query(
-        `SELECT tr.player_id, tr.registered_at, u.name, u.rating, u.avatar
-         FROM tournament_registrations tr
-         JOIN users u ON tr.player_id = u.id
-         WHERE tr.tournament_id = $1
-         ORDER BY u.rating DESC`,
-        [id],
-      ),
-    ]);
+    const tournament = await prisma.tournament.findUnique({
+      where: { id },
+      include: {
+        academy: { select: { name: true } },
+        organizer: { select: { name: true } },
+        _count: { select: { registrations: true } },
+        registrations: {
+          include: {
+            player: {
+              select: { id: true, name: true, rating: true, avatar: true },
+            },
+          },
+          orderBy: { player: { rating: "desc" } },
+        },
+      },
+    });
 
-    if (!tResult.rows.length) return null;
+    if (!tournament) return null;
 
     return {
-      tournament: tResult.rows[0],
-      players: regResult.rows,
+      tournament: {
+        ...tournament,
+        academy_name: tournament.academy?.name,
+        organizer_name: tournament.organizer?.name,
+        registered_count: tournament._count.registrations,
+      },
+      players: tournament.registrations.map((r) => ({
+        ...r.player,
+        player_id: r.player.id,
+        registered_at: r.registered_at,
+      })),
     };
   }
 
@@ -330,28 +332,23 @@ export class TournamentService {
       entryFee = 0,
     } = data;
 
-    const id = uuidv4();
-    await query(
-      `INSERT INTO tournaments (id, academy_id, organizer_id, name, description, format,
-        time_control, rounds, max_players, is_public, starts_at, prize_pool, entry_fee, status, created_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'registration',NOW())`,
-      [
-        id,
-        academyId,
-        organizerId,
+    const tournament = await prisma.tournament.create({
+      data: {
         name,
-        description,
+        academy_id: academyId,
+        organizer_id: organizerId,
         format,
-        timeControl,
+        time_control: timeControl,
         rounds,
-        maxPlayers,
-        isPublic,
-        startsAt,
-        prizePool,
-        entryFee,
-      ],
-    );
-    return id;
+        max_players: maxPlayers,
+        is_public: isPublic,
+        starts_at: startsAt ? new Date(startsAt) : new Date(),
+        prize_pool: prizePool,
+        entry_fee: entryFee,
+        status: "registration",
+      },
+    });
+    return tournament.id;
   }
 
   static async registerPlayer(tournamentId: string, userId: string) {
@@ -360,7 +357,6 @@ export class TournamentService {
     if (t.tournament.status !== "registration")
       throw new Error("Registration is closed");
 
-    // Check if tournament is full
     if (
       t.tournament.max_players &&
       t.players.length >= t.tournament.max_players
@@ -368,44 +364,61 @@ export class TournamentService {
       throw new Error("Tournament is full");
     }
 
-    if (t.players.some((p: any) => p.player_id === userId))
-      throw new Error("Already registered");
-
-    await transaction(async (client) => {
-      await client.query(
-        "INSERT INTO tournament_registrations (tournament_id, player_id, registered_at) VALUES ($1,$2,NOW())",
-        [tournamentId, userId],
-      );
-      await client.query(
-        "INSERT INTO tournament_standings (tournament_id, player_id, score, rank) VALUES ($1,$2,0,0)",
-        [tournamentId, userId],
-      );
+    const alreadyRegistered = await prisma.tournamentRegistration.findUnique({
+      where: {
+        tournament_id_player_id: {
+          tournament_id: tournamentId,
+          player_id: userId,
+        },
+      },
     });
+    if (alreadyRegistered) throw new Error("Already registered");
+
+    await prisma.$transaction([
+      prisma.tournamentRegistration.create({
+        data: { tournament_id: tournamentId, player_id: userId },
+      }),
+      prisma.tournamentStanding.create({
+        data: {
+          tournament_id: tournamentId,
+          player_id: userId,
+          score: 0,
+          rank: 0,
+        },
+      }),
+    ]);
   }
 
   static async unregisterPlayer(tournamentId: string, userId: string) {
-    const t = await query("SELECT status FROM tournaments WHERE id=$1", [
-      tournamentId,
-    ]);
-    if (!t.rows.length) throw new Error("Tournament not found");
-    if (t.rows[0].status !== "registration")
+    const t = await prisma.tournament.findUnique({
+      where: { id: tournamentId },
+      select: { status: true },
+    });
+    if (!t) throw new Error("Tournament not found");
+    if (t.status !== "registration")
       throw new Error("Cannot unregister after registration period");
 
-    await transaction(async (client) => {
-      await client.query(
-        "DELETE FROM tournament_registrations WHERE tournament_id=$1 AND player_id=$2",
-        [tournamentId, userId],
-      );
-      await client.query(
-        "DELETE FROM tournament_standings WHERE tournament_id=$1 AND player_id=$2",
-        [tournamentId, userId],
-      );
-    });
+    await prisma.$transaction([
+      prisma.tournamentRegistration.delete({
+        where: {
+          tournament_id_player_id: {
+            tournament_id: tournamentId,
+            player_id: userId,
+          },
+        },
+      }),
+      prisma.tournamentStanding.delete({
+        where: {
+          tournament_id_player_id: {
+            tournament_id: tournamentId,
+            player_id: userId,
+          },
+        },
+      }),
+    ]);
   }
 
   static async updateTournament(id: string, data: any) {
-    const fields = [];
-    const vals = [];
     const allowed = [
       "name",
       "description",
@@ -419,19 +432,20 @@ export class TournamentService {
       "entry_fee",
     ];
 
+    const updateData: any = {};
     for (const key of allowed) {
       if (data[key] !== undefined) {
-        vals.push(data[key]);
-        fields.push(`${key} = $${vals.length}`);
+        updateData[key] =
+          key === "starts_at" && data[key] ? new Date(data[key]) : data[key];
       }
     }
 
-    if (fields.length === 0) return;
-    vals.push(id);
-    await query(
-      `UPDATE tournaments SET ${fields.join(", ")} WHERE id = $${vals.length}`,
-      vals,
-    );
+    if (Object.keys(updateData).length === 0) return;
+
+    await prisma.tournament.update({
+      where: { id },
+      data: updateData,
+    });
   }
 
   static async startTournament(id: string, actorContext?: any) {
@@ -442,16 +456,16 @@ export class TournamentService {
     if (t.players.length < 2)
       throw new Error("At least 2 players required to start");
 
-    await transaction(async (client) => {
-      await client.query("UPDATE tournaments SET status='live', current_round=1 WHERE id=$1", [
-        id,
-      ]);
+    await prisma.$transaction(async (tx) => {
+      await tx.tournament.update({
+        where: { id },
+        data: { status: "live", current_round: 1 },
+      });
 
-      // Initialize standings rank if not already (registerPlayer already does but just in case)
-      await client.query(
-        "UPDATE tournament_standings SET score=0, wins=0, draws=0, losses=0, tiebreak1=0, rank=0 WHERE tournament_id=$1",
-        [id],
-      );
+      await tx.tournamentStanding.updateMany({
+        where: { tournament_id: id },
+        data: { score: 0, wins: 0, draws: 0, losses: 0, tiebreak1: 0, rank: 0 },
+      });
 
       // Generate Round 1 pairings
       let pairs: any[] = [];
@@ -466,7 +480,7 @@ export class TournamentService {
         pairs = this.generateRoundRobinPairings(
           t.players.map((p) => p.player_id),
           1,
-          t.tournament.rounds,
+          t.tournament.rounds || 5,
         );
       } else if (t.tournament.format === "knockout") {
         pairs = this.generateKnockoutPairings(t.players, 1);
@@ -474,18 +488,24 @@ export class TournamentService {
 
       for (let i = 0; i < pairs.length; i++) {
         const p = pairs[i];
-        await client.query(
-          `INSERT INTO tournament_matches (id, tournament_id, round, board_number, white_id, black_id, is_bye, status)
-           VALUES ($1,$2,1,$3,$4,$5,$6,'pending')`,
-          [uuidv4(), id, i + 1, p.white_id, p.black_id, p.is_bye],
-        );
+        await tx.tournamentMatch.create({
+          data: {
+            tournament_id: id,
+            round: 1,
+            board_number: i + 1,
+            white_id: p.white_id,
+            black_id: p.black_id,
+            is_bye: p.is_bye,
+            status: "pending",
+          },
+        });
 
         // Notify players
         if (!p.is_bye) {
           if (p.white_id) {
             await NotificationService.createNotification({
               userId: p.white_id,
-              type: 'tournament',
+              type: "tournament",
               title: `New Match: ${t.tournament.name}`,
               body: `You are paired as White for Round 1.`,
             }).catch(() => {});
@@ -493,7 +513,7 @@ export class TournamentService {
           if (p.black_id) {
             await NotificationService.createNotification({
               userId: p.black_id,
-              type: 'tournament',
+              type: "tournament",
               title: `New Match: ${t.tournament.name}`,
               body: `You are paired as Black for Round 1.`,
             }).catch(() => {});
@@ -508,10 +528,13 @@ export class TournamentService {
         actorName: actorContext.name,
         actorRole: actorContext.role,
         academyId: actorContext.academyId,
-        action: 'tournament_started',
-        entityType: 'tournament',
+        action: "tournament_started",
+        entityType: "tournament",
         entityId: id,
-        metadata: { playerCount: t.players.length, format: t.tournament.format },
+        metadata: {
+          playerCount: t.players.length,
+          format: t.tournament.format,
+        },
       });
     }
   }
@@ -522,70 +545,62 @@ export class TournamentService {
     result: string,
     actorContext?: any,
   ) {
-    const match = await query(
-      "SELECT * FROM tournament_matches WHERE id=$1 AND tournament_id=$2",
-      [matchId, tournamentId],
-    );
-    if (!match.rows.length) throw new Error("Match not found");
-    const m = match.rows[0];
-
-    if (m.status === "completed") {
-      // Rollback previous scores
-      await this.rollbackMatchScores(m);
-    }
+    const match = await prisma.tournamentMatch.findUnique({
+      where: { id: matchId },
+    });
+    if (!match || match.tournament_id !== tournamentId)
+      throw new Error("Match not found");
 
     let whiteScore = 0;
     let blackScore = 0;
 
-    if (result === 'white' || result === 'forfeit_black') {
-      whiteScore = 1;
-      blackScore = 0;
-    } else if (result === 'black' || result === 'forfeit_white') {
-      whiteScore = 0;
-      blackScore = 1;
-    } else if (result === 'draw') {
-      whiteScore = 0.5;
-      blackScore = 0.5;
-    } else {
-      throw new Error('Invalid result');
-    }
+    await prisma.$transaction(async (tx) => {
+      if (match.status === "completed") {
+        await this.rollbackMatchScores(tx, match);
+      }
 
-    await transaction(async (client) => {
-      await client.query(
-        `UPDATE tournament_matches SET result=$1, white_score=$2, black_score=$3, status='completed', completed_at=NOW() WHERE id=$4`,
-        [result, whiteScore, blackScore, matchId],
-      );
+      if (result === "white" || result === "forfeit_black") {
+        whiteScore = 1;
+        blackScore = 0;
+      } else if (result === "black" || result === "forfeit_white") {
+        whiteScore = 0;
+        blackScore = 1;
+      } else if (result === "draw") {
+        whiteScore = 0.5;
+        blackScore = 0.5;
+      } else {
+        throw new Error("Invalid result");
+      }
+
+      await tx.tournamentMatch.update({
+        where: { id: matchId },
+        data: {
+          result,
+          white_score: whiteScore,
+          black_score: blackScore,
+          status: "completed",
+          completed_at: new Date(),
+        },
+      });
 
       // Update standings
-      if (m.white_id) {
-        await client.query(
-          `UPDATE tournament_standings SET score = COALESCE(score, 0) + $1,
-            wins = COALESCE(wins, 0) + $2, draws = COALESCE(draws, 0) + $3, losses = COALESCE(losses, 0) + $4
-           WHERE tournament_id=$5 AND player_id=$6`,
-          [
-            whiteScore,
-            whiteScore === 1 ? 1 : 0,
-            whiteScore === 0.5 ? 1 : 0,
-            whiteScore === 0 ? 1 : 0,
-            tournamentId,
-            m.white_id,
-          ],
-        );
+      if (match.white_id) {
+        await tx.$executeRaw`
+          UPDATE tournament_standings SET score = COALESCE(score, 0) + ${whiteScore},
+            wins = COALESCE(wins, 0) + ${whiteScore === 1 ? 1 : 0}, 
+            draws = COALESCE(draws, 0) + ${whiteScore === 0.5 ? 1 : 0}, 
+            losses = COALESCE(losses, 0) + ${whiteScore === 0 ? 1 : 0}
+          WHERE tournament_id = ${tournamentId}::uuid AND player_id = ${match.white_id}::uuid
+        `;
       }
-      if (m.black_id && !m.is_bye) {
-        await client.query(
-          `UPDATE tournament_standings SET score = COALESCE(score, 0) + $1,
-            wins = COALESCE(wins, 0) + $2, draws = COALESCE(draws, 0) + $3, losses = COALESCE(losses, 0) + $4
-           WHERE tournament_id=$5 AND player_id=$6`,
-          [
-            blackScore,
-            blackScore === 1 ? 1 : 0,
-            blackScore === 0.5 ? 1 : 0,
-            blackScore === 0 ? 1 : 0,
-            tournamentId,
-            m.black_id,
-          ],
-        );
+      if (match.black_id && !match.is_bye) {
+        await tx.$executeRaw`
+          UPDATE tournament_standings SET score = COALESCE(score, 0) + ${blackScore},
+            wins = COALESCE(wins, 0) + ${blackScore === 1 ? 1 : 0}, 
+            draws = COALESCE(draws, 0) + ${blackScore === 0.5 ? 1 : 0}, 
+            losses = COALESCE(losses, 0) + ${blackScore === 0 ? 1 : 0}
+          WHERE tournament_id = ${tournamentId}::uuid AND player_id = ${match.black_id}::uuid
+        `;
       }
     });
 
@@ -598,8 +613,8 @@ export class TournamentService {
         actorName: actorContext.name,
         actorRole: actorContext.role,
         academyId: actorContext.academyId,
-        action: 'match_result_set',
-        entityType: 'tournament_match',
+        action: "match_result_set",
+        entityType: "tournament_match",
         entityId: matchId,
         metadata: { tournamentId, result, whiteScore, blackScore },
       });
@@ -610,20 +625,24 @@ export class TournamentService {
     const t = await this.getTournamentById(tournamentId);
     if (!t) throw new Error("Tournament not found");
 
-    const matches = await query(
-      "SELECT * FROM tournament_matches WHERE tournament_id=$1",
-      [tournamentId],
-    );
-    const maxRound = Math.max(...matches.rows.map((m) => m.round), 0);
-    const incomplete = matches.rows.filter(
+    const matches = await prisma.tournamentMatch.findMany({
+      where: { tournament_id: tournamentId },
+    });
+
+    const maxRound = Math.max(...matches.map((m) => m.round), 0);
+    const incomplete = matches.filter(
       (m) => m.round === maxRound && m.status !== "completed",
     );
 
     if (incomplete.length > 0) throw new Error("Current round is not finished");
-    if (maxRound >= t.tournament.rounds && t.tournament.format !== "knockout") {
-      await query("UPDATE tournaments SET status='completed' WHERE id=$1", [
-        tournamentId,
-      ]);
+    if (
+      maxRound >= (t.tournament.rounds || 0) &&
+      t.tournament.format !== "knockout"
+    ) {
+      await prisma.tournament.update({
+        where: { id: tournamentId },
+        data: { status: "completed" },
+      });
       return { finished: true };
     }
 
@@ -632,45 +651,39 @@ export class TournamentService {
 
     let pairs: any[] = [];
     if (t.tournament.format === "swiss") {
-      const playerStats = await Promise.all(
-        standings.map(async (s) => {
-          const whites = matches.rows.filter(
-            (m) => m.white_id === s.player_id,
-          ).length;
-          const hadBye = matches.rows.some(
-            (m) => m.white_id === s.player_id && m.is_bye,
-          );
-          return {
-            player_id: s.player_id,
-            score: s.score,
-            had_bye: hadBye,
-            whites_count: whites,
-          };
-        }),
-      );
-      // Sort by score for Swiss
+      const playerStats = standings.map((s) => {
+        const whites = matches.filter((m) => m.white_id === s.player_id).length;
+        const hadBye = matches.some(
+          (m) => m.white_id === s.player_id && m.is_bye,
+        );
+        return {
+          player_id: s.player_id,
+          score: Number(s.score),
+          had_bye: hadBye,
+          whites_count: whites,
+        };
+      });
       playerStats.sort((a, b) => b.score - a.score);
-      pairs = this.generateSwissPairings(playerStats, matches.rows);
+      pairs = this.generateSwissPairings(playerStats, matches);
     } else if (t.tournament.format === "round_robin") {
       pairs = this.generateRoundRobinPairings(
         standings.map((s) => s.player_id),
         nextRound,
-        t.tournament.rounds,
+        t.tournament.rounds || 1,
       );
     } else if (t.tournament.format === "knockout") {
-      // Only winners move up in knockout (score > 0 for that round)
-      // Actually knockout usually handles by identifying winners of previous round
-      const winners = matches.rows
+      const winners = matches
         .filter((m) => m.round === maxRound)
         .map((m) => {
-          if (m.white_score > m.black_score) return m.white_id;
-          if (m.black_score > m.white_score) return m.black_id;
-          return m.white_id; // Simple tiebreak for now
+          if (Number(m.white_score) > Number(m.black_score)) return m.white_id;
+          if (Number(m.black_score) > Number(m.white_score)) return m.black_id;
+          return m.white_id;
         });
       if (winners.length < 2) {
-        await query("UPDATE tournaments SET status='completed' WHERE id=$1", [
-          tournamentId,
-        ]);
+        await prisma.tournament.update({
+          where: { id: tournamentId },
+          data: { status: "completed" },
+        });
         return { finished: true };
       }
       pairs = this.generateKnockoutPairings(
@@ -679,28 +692,26 @@ export class TournamentService {
       );
     }
 
-    await transaction(async (client) => {
+    await prisma.$transaction(async (tx) => {
       for (let i = 0; i < pairs.length; i++) {
         const p = pairs[i];
-        await client.query(
-          `INSERT INTO tournament_matches (id, tournament_id, round, board_number, white_id, black_id, is_bye, status)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,'pending')`,
-          [
-            uuidv4(),
-            tournamentId,
-            nextRound,
-            i + 1,
-            p.white_id,
-            p.black_id,
-            p.is_bye,
-          ],
-        );
+        await tx.tournamentMatch.create({
+          data: {
+            tournament_id: tournamentId,
+            round: nextRound,
+            board_number: i + 1,
+            white_id: p.white_id,
+            black_id: p.black_id,
+            is_bye: p.is_bye,
+            status: "pending",
+          },
+        });
       }
-      
-      await client.query("UPDATE tournaments SET current_round=$1 WHERE id=$2", [
-        nextRound,
-        tournamentId,
-      ]);
+
+      await tx.tournament.update({
+        where: { id: tournamentId },
+        data: { current_round: nextRound },
+      });
 
       // Notify players
       for (const p of pairs) {
@@ -708,7 +719,7 @@ export class TournamentService {
           if (p.white_id) {
             await NotificationService.createNotification({
               userId: p.white_id,
-              type: 'tournament',
+              type: "tournament",
               title: `New Match: Round ${nextRound}`,
               body: `Your next match is ready. You are playing as White.`,
             }).catch(() => {});
@@ -716,7 +727,7 @@ export class TournamentService {
           if (p.black_id) {
             await NotificationService.createNotification({
               userId: p.black_id,
-              type: 'tournament',
+              type: "tournament",
               title: `New Match: Round ${nextRound}`,
               body: `Your next match is ready. You are playing as Black.`,
             }).catch(() => {});
@@ -731,8 +742,8 @@ export class TournamentService {
         actorName: actorContext.name,
         actorRole: actorContext.role,
         academyId: actorContext.academyId,
-        action: 'tournament_next_round',
-        entityType: 'tournament',
+        action: "tournament_next_round",
+        entityType: "tournament",
         entityId: tournamentId,
         metadata: { round: nextRound, pairsCount: pairs.length },
       });
@@ -742,57 +753,81 @@ export class TournamentService {
   }
 
   static async cancelTournament(id: string, actorContext?: any) {
-    await query("UPDATE tournaments SET status='cancelled' WHERE id=$1", [id]);
-    
+    await prisma.tournament.update({
+      where: { id },
+      data: { status: "cancelled" },
+    });
+
     if (actorContext) {
       await ActivityLogService.logActivity({
         actorId: actorContext.id,
         actorName: actorContext.name,
         actorRole: actorContext.role,
         academyId: actorContext.academyId,
-        action: 'tournament_cancelled',
-        entityType: 'tournament',
+        action: "tournament_cancelled",
+        entityType: "tournament",
         entityId: id,
       });
     }
   }
 
   static async getStandings(tournamentId: string) {
-    const result = await query(
-      `SELECT s.*, u.name, u.rating, u.avatar
-       FROM tournament_standings s
-       JOIN users u ON s.player_id = u.id
-       WHERE s.tournament_id = $1
-       ORDER BY s.score DESC, s.tiebreak1 DESC`,
-      [tournamentId],
-    );
-    return result.rows;
+    const standings = await prisma.tournamentStanding.findMany({
+      where: { tournament_id: tournamentId },
+      include: {
+        player: { select: { name: true, rating: true, avatar: true } },
+      },
+      orderBy: [{ score: "desc" }, { tiebreak1: "desc" }],
+    });
+
+    return standings.map((s) => ({
+      ...s,
+      name: s.player.name,
+      rating: s.player.rating,
+      avatar: s.player.avatar,
+    }));
   }
 
   static async getMatches(tournamentId: string, round?: number) {
-    const conditions = ["tm.tournament_id = $1"];
-    const params: any[] = [tournamentId];
-    if (round) {
-      params.push(round);
-      conditions.push(`tm.round = $${params.length}`);
-    }
+    const where: any = { tournament_id: tournamentId };
+    if (round) where.round = round;
 
-    const result = await query(
-      `SELECT
-        tm.*,
-        wu.name as white_name, wu.rating as white_rating, wu.avatar as white_avatar,
-        bu.name as black_name, bu.rating as black_rating, bu.avatar as black_avatar,
-        ws.score as white_total_score, bs.score as black_total_score
-       FROM tournament_matches tm
-       LEFT JOIN users wu ON tm.white_id = wu.id
-       LEFT JOIN users bu ON tm.black_id = bu.id
-       LEFT JOIN tournament_standings ws ON ws.tournament_id = tm.tournament_id AND ws.player_id = tm.white_id
-       LEFT JOIN tournament_standings bs ON bs.tournament_id = tm.tournament_id AND bs.player_id = tm.black_id
-       WHERE ${conditions.join(" AND ")}
-       ORDER BY tm.round DESC, tm.board_number ASC`,
-      params,
+    const matches = await prisma.tournamentMatch.findMany({
+      where,
+      orderBy: [{ round: "desc" }, { board_number: "asc" }],
+    });
+
+    // Fetch related data in separate step for better control/types
+    const playerIds = Array.from(
+      new Set(matches.flatMap((m) => [m.white_id, m.black_id]).filter(Boolean)),
+    ) as string[];
+    const [players, standings] = await Promise.all([
+      prisma.user.findMany({
+        where: { id: { in: playerIds } },
+        select: { id: true, name: true, rating: true, avatar: true },
+      }),
+      prisma.tournamentStanding.findMany({
+        where: { tournament_id: tournamentId, player_id: { in: playerIds } },
+        select: { player_id: true, score: true },
+      }),
+    ]);
+
+    const playerMap = Object.fromEntries(players.map((p) => [p.id, p]));
+    const scoreMap = Object.fromEntries(
+      standings.map((s) => [s.player_id, s.score]),
     );
-    return result.rows;
+
+    return matches.map((m) => ({
+      ...m,
+      white_name: m.white_id ? playerMap[m.white_id]?.name : null,
+      white_rating: m.white_id ? playerMap[m.white_id]?.rating : null,
+      white_avatar: m.white_id ? playerMap[m.white_id]?.avatar : null,
+      black_name: m.black_id ? playerMap[m.black_id]?.name : null,
+      black_rating: m.black_id ? playerMap[m.black_id]?.rating : null,
+      black_avatar: m.black_id ? playerMap[m.black_id]?.avatar : null,
+      white_total_score: m.white_id ? scoreMap[m.white_id] : null,
+      black_total_score: m.black_id ? scoreMap[m.black_id] : null,
+    }));
   }
 }
 

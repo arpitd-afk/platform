@@ -1,12 +1,11 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { v4 as uuidv4 } from "uuid";
-import { query, transaction } from "../lib/db";
+import { Prisma } from "@prisma/client";
+import { prisma } from "../lib/prisma";
 import config from "../lib/config";
 import logger from "../lib/logger";
-import { sendPasswordResetEmail } from "../lib/email";
 import ActivityLogService from "./activityLogService";
-import { User, UserRole } from "../types/models";
+import { UserRole } from "../types/models";
 
 const JWT_SECRET = config.jwtSecret;
 
@@ -33,8 +32,8 @@ export const formatUser = (user: any) => ({
   role: user.role as UserRole,
   rating: user.rating || 1200,
   academyId: user.academy_id,
-  academyName: user.academy_name,
-  academySubdomain: user.academy_subdomain,
+  academyName: user.academy?.name || user.academy_name,
+  academySubdomain: user.academy?.subdomain || user.academy_subdomain,
   avatar: user.avatar,
   isActive: user.is_active,
   phone: user.phone || "",
@@ -45,18 +44,23 @@ export const AuthService = {
   async register(data: any, ip?: string) {
     const { name, email, password, role, academyName, academySubdomain } = data;
 
-    const existing = await query("SELECT id FROM users WHERE email = $1", [
-      email,
-    ]);
-    if (existing.rows.length > 0) {
+    const existing = await prisma.user.findUnique({
+      where: { email },
+      select: { id: true },
+    });
+    if (existing) {
       throw new Error("Email already registered");
     }
 
     const hashedPassword = await bcrypt.hash(password, 12);
-    const userId = uuidv4();
-    let academyId: string | null = null;
 
-    await transaction(async (client) => {
+    const result = await prisma.$transaction(async (tx) => {
+      let academyId: string | null = null;
+      let userId: string;
+
+      // 1. Create the user first (or after academy, but we need userId for owner_id)
+      // Actually in original schema owner_id is nullable.
+
       if (role === "academy_admin" && academyName) {
         const subdomain = (
           academySubdomain ||
@@ -65,54 +69,68 @@ export const AuthService = {
             .replace(/\s+/g, "-")
             .replace(/[^a-z0-9-]/g, "")
         ).slice(0, 50);
-        const existingSub = await client.query(
-          "SELECT id FROM academies WHERE subdomain = $1",
-          [subdomain],
-        );
-        if (existingSub.rows.length > 0) {
+
+        const existingSub = await tx.academy.findUnique({
+          where: { subdomain },
+          select: { id: true },
+        });
+        if (existingSub) {
           throw new Error("Subdomain already taken");
         }
-        const academy = await client.query(
-          `INSERT INTO academies (id, name, subdomain, owner_id, plan, is_active, trial_ends_at, created_at)
-           VALUES ($1, $2, $3, $4, 'trial', true, NOW() + INTERVAL '14 days', NOW())
-           RETURNING id`,
-          [uuidv4(), academyName, subdomain, userId],
-        );
-        academyId = academy.rows[0].id;
+
+        const academy = await tx.academy.create({
+          data: {
+            name: academyName,
+            subdomain,
+            plan: "trial",
+            is_active: true,
+            trial_ends_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+          },
+        });
+        academyId = academy.id;
       }
 
-      await client.query(
-        `INSERT INTO users (id, name, email, password_hash, role, academy_id, rating, is_active, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, 1200, true, NOW())`,
-        [userId, name, email, hashedPassword, role, academyId],
-      );
+      const user = await tx.user.create({
+        data: {
+          name,
+          email,
+          password_hash: hashedPassword,
+          role,
+          academy_id: academyId,
+          rating: 1200,
+          is_active: true,
+        },
+      });
+      userId = user.id;
 
       if (academyId) {
-        await client.query("UPDATE academies SET owner_id = $1 WHERE id = $2", [
-          userId,
-          academyId,
-        ]);
+        await tx.academy.update({
+          where: { id: academyId },
+          data: { owner_id: userId },
+        });
       }
+
+      return { userId, academyId };
     });
 
-    const userResult = await query(
-      `SELECT u.*, a.name as academy_name, a.subdomain as academy_subdomain
-       FROM users u LEFT JOIN academies a ON u.academy_id = a.id
-       WHERE u.id = $1`,
-      [userId],
-    );
-    const user = userResult.rows[0];
+    const user = await prisma.user.findUnique({
+      where: { id: result.userId },
+      include: { academy: { select: { name: true, subdomain: true } } },
+    });
+
+    if (!user) throw new Error("Registration failed");
+
     const token = generateToken(user);
 
     logger.info(`New user registered: ${email} (${role})`);
     ActivityLogService.logActivity({
-      actorId: userId,
-      actorName: name,
-      actorRole: role,
-      academyId,
+      actorId: user.id,
+      actorName: user.name,
+      actorRole: user.role,
+      academyId: user.academy_id,
       action: "user_registered",
       entityType: "user",
-      entityId: userId,
+      entityId: user.id,
       metadata: { email, role },
       ip,
     });
@@ -121,19 +139,18 @@ export const AuthService = {
   },
 
   async login(email: string, password: string, ip?: string) {
-    const result = await query(
-      `SELECT u.*, a.name as academy_name, a.subdomain as academy_subdomain,
-              a.is_active as academy_is_active
-       FROM users u LEFT JOIN academies a ON u.academy_id = a.id
-       WHERE u.email = $1`,
-      [email],
-    );
+    const user = await prisma.user.findUnique({
+      where: { email },
+      include: {
+        academy: {
+          select: { name: true, subdomain: true, is_active: true },
+        },
+      },
+    });
 
-    if (result.rows.length === 0) {
+    if (!user) {
       throw new Error("Invalid email or password");
     }
-
-    const user = result.rows[0];
 
     if (!user.is_active) {
       throw new Error("Account is deactivated. Contact support.");
@@ -142,7 +159,7 @@ export const AuthService = {
     if (
       user.role !== "super_admin" &&
       user.academy_id &&
-      user.academy_is_active === false
+      user.academy?.is_active === false
     ) {
       throw new Error(
         "Your academy has been suspended. Please contact support.",
@@ -154,9 +171,10 @@ export const AuthService = {
       throw new Error("Invalid email or password");
     }
 
-    await query("UPDATE users SET last_login_at = NOW() WHERE id = $1", [
-      user.id,
-    ]);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { last_login_at: new Date() },
+    });
 
     const token = generateToken(user);
     logger.info(`User logged in: ${email}`);
@@ -177,13 +195,11 @@ export const AuthService = {
   },
 
   async getUserById(userId: string) {
-    const result = await query(
-      `SELECT u.*, a.name as academy_name, a.subdomain as academy_subdomain
-       FROM users u LEFT JOIN academies a ON u.academy_id = a.id
-       WHERE u.id = $1`,
-      [userId],
-    );
-    if (result.rows.length === 0) return null;
-    return formatUser(result.rows[0]);
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { academy: { select: { name: true, subdomain: true } } },
+    });
+    if (!user) return null;
+    return formatUser(user);
   },
 };

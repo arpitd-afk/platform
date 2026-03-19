@@ -321,7 +321,7 @@ export default function AnnouncementsPage() {
         >
           <div className="space-y-4">
             <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-              "<strong>{confirmDelete.title}</strong>" will be permanently
+              &quot;<strong>{confirmDelete.title}</strong>&quot; will be permanently
               removed from all dashboards.
             </p>
             <div className="flex gap-3">

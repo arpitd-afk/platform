@@ -1,35 +1,25 @@
 {
   "pages": {
+    "/(dashboard)/student/puzzles/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(dashboard)/student/puzzles/page.js"
+    ],
+    "/(dashboard)/layout": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(dashboard)/layout.js"
+    ],
     "/layout": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/css/app/layout.css",
       "static/chunks/app/layout.js"
     ],
-    "/(public)/features/page": [
+    "/(dashboard)/notifications/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(public)/features/page.js"
-    ],
-    "/(public)/layout": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/(public)/layout.js"
-    ],
-    "/(public)/blog/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/(public)/blog/page.js"
-    ],
-    "/(public)/contact/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/(public)/contact/page.js"
-    ],
-    "/(public)/onboarding/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/(public)/onboarding/page.js"
+      "static/chunks/app/(dashboard)/notifications/page.js"
     ],
     "/(auth)/login/page": [
       "static/chunks/webpack.js",
@@ -41,60 +31,100 @@
       "static/chunks/main-app.js",
       "static/chunks/app/(dashboard)/super-admin/page.js"
     ],
-    "/(dashboard)/layout": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/layout.js"
-    ],
-    "/(dashboard)/super-admin/settings/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/super-admin/settings/page.js"
-    ],
     "/(dashboard)/super-admin/academies/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/(dashboard)/super-admin/academies/page.js"
     ],
-    "/(auth)/register/page": [
+    "/(dashboard)/super-admin/users/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(auth)/register/page.js"
+      "static/chunks/app/(dashboard)/super-admin/users/page.js"
     ],
-    "/(public)/page": [
+    "/(dashboard)/super-admin/analytics/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(public)/page.js"
+      "static/chunks/app/(dashboard)/super-admin/analytics/page.js"
     ],
-    "/(public)/pricing/page": [
+    "/(dashboard)/super-admin/billing/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(public)/pricing/page.js"
+      "static/chunks/app/(dashboard)/super-admin/billing/page.js"
     ],
-    "/(public)/blog/[slug]/page": [
+    "/(dashboard)/super-admin/anticheat/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(public)/blog/[slug]/page.js"
-    ],
-    "/(auth)/forgot-password/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/(auth)/forgot-password/page.js"
-    ],
-    "/game/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/game/page.js"
+      "static/chunks/app/(dashboard)/super-admin/anticheat/page.js"
     ],
     "/(dashboard)/super-admin/logs/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/(dashboard)/super-admin/logs/page.js"
     ],
-    "/_not-found/page": [
+    "/(dashboard)/super-admin/settings/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/_not-found/page.js"
+      "static/chunks/app/(dashboard)/super-admin/settings/page.js"
+    ],
+    "/(dashboard)/profile/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(dashboard)/profile/page.js"
+    ],
+    "/(dashboard)/academy/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(dashboard)/academy/page.js"
+    ],
+    "/(dashboard)/academy/settings/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(dashboard)/academy/settings/page.js"
+    ],
+    "/(dashboard)/coach/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(dashboard)/coach/page.js"
+    ],
+    "/(dashboard)/coach/settings/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(dashboard)/coach/settings/page.js"
+    ],
+    "/(dashboard)/parent/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(dashboard)/parent/page.js"
+    ],
+    "/(dashboard)/parent/settings/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(dashboard)/parent/settings/page.js"
+    ],
+    "/(dashboard)/academy/classes/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(dashboard)/academy/classes/page.js"
+    ],
+    "/(dashboard)/academy/batches/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(dashboard)/academy/batches/page.js"
+    ],
+    "/(dashboard)/student/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(dashboard)/student/page.js"
+    ],
+    "/(dashboard)/student/games/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(dashboard)/student/games/page.js"
+    ],
+    "/game/[id]/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/game/[id]/page.js"
     ]
   }
 }

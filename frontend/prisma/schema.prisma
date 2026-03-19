@@ -1,0 +1,781 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider   = "prisma-client-js"
+  engineType = "library"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Academy {
+  id                   String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                 String      @db.VarChar(200)
+  subdomain            String      @unique @db.VarChar(100)
+  owner_id             String?     @db.Uuid
+  plan                 String?     @default("trial") @db.VarChar(50)
+  is_active            Boolean?    @default(true)
+  logo_url             String?
+  theme                Json?       @default("{}")
+  settings             Json?       @default("{}")
+  max_students         Int?        @default(50)
+  trial_ends_at        DateTime?   @db.Timestamptz
+  subscription_ends_at DateTime?   @db.Timestamptz
+  stripe_customer_id   String?     @db.VarChar(200)
+  stripe_subscription_id String?   @db.VarChar(200)
+  created_at           DateTime?   @default(now()) @db.Timestamptz
+  updated_at           DateTime?   @default(now()) @db.Timestamptz
+
+  users                User[]
+  batches              Batch[]
+  classrooms           Classroom[]
+  tournaments          Tournament[]
+  lessons              Lesson[]
+  courses              Course[]
+  announcements        Announcement[]
+  custom_puzzles       CustomPuzzle[]
+  mcq_questions        McqQuestion[]
+  activity_logs        ActivityLog[]
+  student_invoices     StudentInvoice[]
+  invoices             Invoice[]
+
+  @@index([subdomain], name: "idx_academies_subdomain")
+  @@index([owner_id], name: "idx_academies_owner")
+  @@map("academies")
+}
+
+model User {
+  id                  String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                String      @db.VarChar(200)
+  email               String      @unique @db.VarChar(300)
+  password_hash       String
+  role                String      @db.VarChar(50)
+  academy_id          String?     @db.Uuid
+  rating              Int?        @default(1200)
+  rating_deviation    Int?        @default(350)
+  avatar              String?
+  bio                 String?
+  date_of_birth       DateTime?   @db.Date
+  phone               String?     @db.VarChar(30)
+  is_active           Boolean?    @default(true)
+  email_verified      Boolean?    @default(false)
+  last_login_at       DateTime?   @db.Timestamptz
+  reset_token         String?     @db.VarChar(200)
+  reset_token_expires DateTime?   @db.Timestamptz
+  preferences         Json?       @default("{}")
+  created_at          DateTime?   @default(now()) @db.Timestamptz
+  updated_at          DateTime?   @default(now()) @db.Timestamptz
+  assigned_coach_id   String?     @db.Uuid
+
+  academy             Academy?    @relation(fields: [academy_id], references: [id], onDelete: SetNull)
+  coach               User?       @relation("CoachToStudent", fields: [assigned_coach_id], references: [id], onDelete: SetNull)
+  students            User[]      @relation("CoachToStudent")
+
+  parent_of           ParentStudent[] @relation("Parent")
+  student_of          ParentStudent[] @relation("Student")
+
+  batch_enrollments   BatchEnrollment[]
+  coached_batches     Batch[]     @relation("CoachBatches")
+  coached_classrooms  Classroom[] @relation("CoachClassrooms")
+  classroom_attendance ClassroomAttendance[]
+  
+  white_games         Game[]      @relation("WhitePlayer")
+  black_games         Game[]      @relation("BlackPlayer")
+  
+  tournaments         Tournament[] @relation("Organizer")
+  tournament_registrations TournamentRegistration[]
+  tournament_standings TournamentStanding[]
+  
+  coached_assignments Assignment[] @relation("CoachAssignments")
+  assigned_assignments Assignment[] @relation("StudentAssignments")
+  assignment_submissions AssignmentSubmission[] @relation("StudentSubmissions")
+  graded_submissions  AssignmentSubmission[] @relation("GraderSubmissions")
+  
+  puzzle_attempts     PuzzleAttempt[]
+  lessons_authored    Lesson[]     @relation("LessonAuthor")
+  lesson_progress     LessonProgress[]
+  notifications       Notification[]
+  
+  cheat_reports_reported CheatReport[] @relation("ReportedUser")
+  cheat_reports_reporter CheatReport[] @relation("Reporter")
+  
+  rating_history      RatingHistory[]
+  announcements_authored Announcement[] @relation("AnnouncementAuthor")
+  
+  sent_messages       Message[]   @relation("SentMessages")
+  received_messages   Message[]   @relation("ReceivedMessages")
+  
+  batch_messages      BatchMessage[]
+  student_invoices    StudentInvoice[]
+  
+  custom_puzzles_authored CustomPuzzle[]
+  custom_puzzle_attempts CustomPuzzleAttempt[]
+  mcq_questions_authored McqQuestion[]
+  mcq_attempts        McqAttempt[]
+  activity_logs       ActivityLog[]
+
+  @@index([email], name: "idx_users_email")
+  @@index([academy_id], name: "idx_users_academy")
+  @@index([role], name: "idx_users_role")
+  @@index([assigned_coach_id], name: "idx_users_assigned_coach")
+  @@index([rating(sort: Desc)], name: "idx_users_rating_desc")
+  @@map("users")
+}
+
+model ParentStudent {
+  parent_id  String @db.Uuid
+  student_id String @db.Uuid
+
+  parent     User   @relation("Parent", fields: [parent_id], references: [id], onDelete: Cascade)
+  student    User   @relation("Student", fields: [student_id], references: [id], onDelete: Cascade)
+
+  @@id([parent_id, student_id])
+  @@index([student_id], name: "idx_parent_student_student") // Added for optimization
+  @@map("parent_student")
+}
+
+model Batch {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  academy_id    String?     @db.Uuid
+  coach_id      String?     @db.Uuid
+  name          String      @db.VarChar(200)
+  description   String?
+  level         String?     @default("beginner") @db.VarChar(50)
+  max_students  Int?        @default(20)
+  schedule      String?     @default("")
+  is_active     Boolean?    @default(true)
+  created_at    DateTime?   @default(now()) @db.Timestamptz
+
+  academy       Academy?    @relation(fields: [academy_id], references: [id], onDelete: Cascade)
+  coach         User?       @relation("CoachBatches", fields: [coach_id], references: [id], onDelete: SetNull)
+  enrollments   BatchEnrollment[]
+  classrooms    Classroom[]
+  assignments   Assignment[]
+  batch_messages BatchMessage[]
+  student_invoices StudentInvoice[]
+
+  @@index([academy_id], name: "idx_batches_academy")
+  @@index([coach_id], name: "idx_batches_coach")
+  @@map("batches")
+}
+
+model BatchEnrollment {
+  batch_id    String    @db.Uuid
+  student_id  String    @db.Uuid
+  enrolled_at DateTime? @default(now()) @db.Timestamptz
+  is_active   Boolean?  @default(true)
+
+  batch       Batch     @relation(fields: [batch_id], references: [id], onDelete: Cascade)
+  student     User      @relation(fields: [student_id], references: [id], onDelete: Cascade)
+
+  @@id([batch_id, student_id])
+  @@index([student_id], name: "idx_batch_enrollments_student") // Added for optimization
+  @@map("batch_enrollments")
+}
+
+model Classroom {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  academy_id    String?     @db.Uuid
+  batch_id      String?     @db.Uuid
+  coach_id      String?     @db.Uuid
+  title         String      @db.VarChar(300)
+  description   String?
+  scheduled_at  DateTime?   @db.Timestamptz
+  started_at    DateTime?   @db.Timestamptz
+  ended_at      DateTime?   @db.Timestamptz
+  duration_min  Int?        @default(60)
+  status        String?     @default("scheduled") @db.VarChar(50)
+  board_fen     String?     @default("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
+  pgn           String?     @default("")
+  recording_url String?
+  notes         String?
+  created_at    DateTime?   @default(now()) @db.Timestamptz
+
+  academy       Academy?    @relation(fields: [academy_id], references: [id], onDelete: Cascade)
+  batch         Batch?      @relation(fields: [batch_id], references: [id], onDelete: SetNull)
+  coach         User?       @relation("CoachClassrooms", fields: [coach_id], references: [id], onDelete: SetNull)
+  attendance    ClassroomAttendance[]
+  games         Game[]
+
+  @@index([academy_id], name: "idx_classrooms_academy")
+  @@index([coach_id], name: "idx_classrooms_coach")
+  @@index([scheduled_at], name: "idx_classrooms_scheduled")
+  @@map("classrooms")
+}
+
+model ClassroomAttendance {
+  classroom_id String    @db.Uuid
+  student_id   String    @db.Uuid
+  joined_at    DateTime? @db.Timestamptz
+  left_at      DateTime? @db.Timestamptz
+  duration_min Int?      @default(0)
+
+  classroom    Classroom @relation(fields: [classroom_id], references: [id], onDelete: Cascade)
+  student      User      @relation(fields: [student_id], references: [id], onDelete: Cascade)
+
+  @@id([classroom_id, student_id])
+  @@index([student_id], name: "idx_classroom_attendance_student") // Added for optimization
+  @@map("classroom_attendance")
+}
+
+model Game {
+  id                String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  white_player_id   String?     @db.Uuid
+  black_player_id   String?     @db.Uuid
+  fen               String
+  pgn               String?     @default("")
+  opening_name      String?     @db.VarChar(200)
+  opening_eco       String?     @db.VarChar(10)
+  status            String?     @default("waiting") @db.VarChar(50)
+  result            Json?
+  white_rating_before Int?
+  black_rating_before Int?
+  white_rating_after  Int?
+  black_rating_after  Int?
+  time_control      String?     @default("10+5") @db.VarChar(50)
+  white_time_ms     Int?        @default(600000)
+  black_time_ms     Int?        @default(600000)
+  increment_ms      Int?        @default(5000)
+  mode              String?     @default("casual") @db.VarChar(50)
+  tournament_id     String?     @db.Uuid
+  classroom_id      String?     @db.Uuid
+  analysis          Json?
+  anti_cheat_score  Float?
+  created_at        DateTime?   @default(now()) @db.Timestamptz
+  updated_at        DateTime?   @default(now()) @db.Timestamptz
+
+  white_player      User?       @relation("WhitePlayer", fields: [white_player_id], references: [id], onDelete: SetNull)
+  black_player      User?       @relation("BlackPlayer", fields: [black_player_id], references: [id], onDelete: SetNull)
+  classroom         Classroom?  @relation(fields: [classroom_id], references: [id])
+  
+  rating_history    RatingHistory[]
+  cheat_reports     CheatReport[]
+  tournament_matches TournamentMatch[]
+
+  @@index([white_player_id], name: "idx_games_white")
+  @@index([black_player_id], name: "idx_games_black")
+  @@index([tournament_id], name: "idx_games_tournament")
+  @@index([status], name: "idx_games_status")
+  @@index([created_at(sort: Desc)], name: "idx_games_created")
+  @@index([white_player_id, black_player_id, status], name: "idx_games_players_status") // Added for optimization
+  @@map("games")
+}
+
+model Tournament {
+  id              String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  academy_id      String?     @db.Uuid
+  organizer_id    String?     @db.Uuid
+  name            String      @db.VarChar(300)
+  description     String?
+  format          String?     @default("swiss") @db.VarChar(50)
+  status          String?     @default("upcoming") @db.VarChar(50)
+  is_public       Boolean?    @default(true)
+  time_control    String?     @default("10+5") @db.VarChar(50)
+  rounds          Int?        @default(5)
+  current_round   Int?        @default(0)
+  max_players     Int?        @default(64)
+  min_rating      Int?
+  max_rating      Int?
+  entry_fee       Decimal?    @db.Decimal(10, 2) @default(0)
+  prize_pool      Decimal?    @db.Decimal(10, 2) @default(0)
+  prize_structure Json?       @default("[]")
+  starts_at       DateTime?   @db.Timestamptz
+  ends_at         DateTime?   @db.Timestamptz
+  registration_ends_at DateTime? @db.Timestamptz
+  settings        Json?       @default("{}")
+  created_at      DateTime?   @default(now()) @db.Timestamptz
+
+  academy       Academy?    @relation(fields: [academy_id], references: [id], onDelete: Cascade)
+  organizer     User?       @relation("Organizer", fields: [organizer_id], references: [id], onDelete: SetNull)
+  registrations TournamentRegistration[]
+  standings     TournamentStanding[]
+  matches       TournamentMatch[]
+
+  @@index([academy_id], name: "idx_tournaments_academy")
+  @@index([status], name: "idx_tournaments_status")
+  @@map("tournaments")
+}
+
+model TournamentRegistration {
+  tournament_id String    @db.Uuid
+  player_id     String    @db.Uuid
+  seed          Int?
+  is_confirmed  Boolean?  @default(true)
+  registered_at DateTime? @default(now()) @db.Timestamptz
+
+  tournament    Tournament @relation(fields: [tournament_id], references: [id], onDelete: Cascade)
+  player        User       @relation(fields: [player_id], references: [id], onDelete: Cascade)
+
+  @@id([tournament_id, player_id])
+  @@map("tournament_registrations")
+}
+
+model TournamentStanding {
+  tournament_id String    @db.Uuid
+  player_id     String    @db.Uuid
+  rank          Int?
+  score         Decimal?  @db.Decimal(5, 1) @default(0)
+  tiebreak1     Decimal?  @db.Decimal(8, 2) @default(0)
+  tiebreak2     Decimal?  @db.Decimal(8, 2) @default(0)
+  wins          Int?      @default(0)
+  draws         Int?      @default(0)
+  losses        Int?      @default(0)
+
+  tournament    Tournament @relation(fields: [tournament_id], references: [id], onDelete: Cascade)
+  player        User       @relation(fields: [player_id], references: [id], onDelete: Cascade)
+
+  @@id([tournament_id, player_id])
+  @@map("tournament_standings")
+}
+
+model Assignment {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  coach_id      String?     @db.Uuid
+  batch_id      String?     @db.Uuid
+  student_id    String?     @db.Uuid
+  title         String      @db.VarChar(300)
+  description   String?
+  type          String?     @default("puzzle") @db.VarChar(50)
+  content       Json?       @default("{}")
+  due_date      DateTime?   @db.Timestamptz
+  max_attempts  Int?        @default(3)
+  is_auto_graded Boolean?   @default(true)
+  passing_score  Int?       @default(70)
+  created_at    DateTime?   @default(now()) @db.Timestamptz
+
+  coach         User?       @relation("CoachAssignments", fields: [coach_id], references: [id], onDelete: SetNull)
+  batch         Batch?      @relation(fields: [batch_id], references: [id], onDelete: SetNull)
+  student       User?       @relation("StudentAssignments", fields: [student_id], references: [id], onDelete: SetNull)
+  submissions   AssignmentSubmission[]
+
+  @@map("assignments")
+}
+
+model AssignmentSubmission {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  assignment_id String    @db.Uuid
+  student_id    String    @db.Uuid
+  attempt_number Int?      @default(1)
+  submission    Json?      @default("{}")
+  score         Int?
+  feedback      String?
+  graded_by     String?   @db.Uuid
+  submitted_at  DateTime? @default(now()) @db.Timestamptz
+  graded_at     DateTime? @db.Timestamptz
+
+  assignment    Assignment @relation(fields: [assignment_id], references: [id], onDelete: Cascade)
+  student       User       @relation("StudentSubmissions", fields: [student_id], references: [id], onDelete: Cascade)
+  grader        User?      @relation("GraderSubmissions", fields: [graded_by], references: [id])
+
+  @@index([student_id], name: "idx_assignment_submissions_student") // Added for optimization
+  @@map("assignment_submissions")
+}
+
+model Puzzle {
+  id            String      @id @db.VarChar(50)
+  fen           String
+  moves         String
+  rating        Int?        @default(1200)
+  rating_deviation Int?      @default(80)
+  popularity    Int?        @default(0)
+  nb_plays      Int?        @default(0)
+  themes        String[]
+  game_url      String?
+  opening_tags  String[]
+  created_at    DateTime?   @default(now()) @db.Timestamptz
+
+  attempts      PuzzleAttempt[]
+
+  @@index([rating], name: "idx_puzzles_rating")
+  @@map("puzzles")
+}
+
+model PuzzleAttempt {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  puzzle_id     String    @db.VarChar(50)
+  user_id       String    @db.Uuid
+  is_correct    Boolean?
+  time_taken_ms Int?
+  attempted_at  DateTime? @default(now()) @db.Timestamptz
+
+  puzzle        Puzzle    @relation(fields: [puzzle_id], references: [id])
+  user          User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id], name: "idx_puzzle_attempts_user") // Added for optimization
+  @@map("puzzle_attempts")
+}
+
+model Lesson {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  academy_id    String?     @db.Uuid
+  author_id     String?     @db.Uuid
+  title         String      @db.VarChar(300)
+  description   String?
+  content       Json?       @default("{}")
+  pgn           String?     @default("")
+  video_url     String?
+  thumbnail_url String?
+  level         String?     @default("beginner") @db.VarChar(50)
+  tags          String[]
+  is_published  Boolean?    @default(false)
+  order_index   Int?        @default(0)
+  created_at    DateTime?   @default(now()) @db.Timestamptz
+  updated_at    DateTime?   @default(now()) @db.Timestamptz
+
+  academy       Academy?    @relation(fields: [academy_id], references: [id], onDelete: Cascade)
+  author        User?       @relation("LessonAuthor", fields: [author_id], references: [id], onDelete: SetNull)
+  course_lessons CourseLesson[]
+  progress      LessonProgress[]
+
+  @@map("lessons")
+}
+
+model Course {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  academy_id    String?     @db.Uuid
+  title         String      @db.VarChar(300)
+  description   String?
+  thumbnail_url String?
+  level         String?     @default("beginner") @db.VarChar(50)
+  price         Decimal?    @db.Decimal(10, 2) @default(0)
+  is_published  Boolean?    @default(false)
+  created_at    DateTime?   @default(now()) @db.Timestamptz
+
+  academy       Academy?    @relation(fields: [academy_id], references: [id], onDelete: Cascade)
+  lessons       CourseLesson[]
+
+  @@map("courses")
+}
+
+model CourseLesson {
+  course_id   String @db.Uuid
+  lesson_id   String @db.Uuid
+  order_index Int?   @default(0)
+
+  course      Course @relation(fields: [course_id], references: [id], onDelete: Cascade)
+  lesson      Lesson @relation(fields: [lesson_id], references: [id], onDelete: Cascade)
+
+  @@id([course_id, lesson_id])
+  @@map("course_lessons")
+}
+
+model Notification {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id     String?   @db.Uuid
+  type        String    @db.VarChar(100)
+  title       String    @db.VarChar(300)
+  body        String?
+  data        Json?     @default("{}")
+  is_read     Boolean?  @default(false)
+  created_at  DateTime? @default(now()) @db.Timestamptz
+
+  user        User?     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, is_read, created_at(sort: Desc)], name: "idx_notifications_user")
+  @@map("notifications")
+}
+
+model Invoice {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  academy_id    String?   @db.Uuid
+  amount        Decimal   @db.Decimal(10, 2)
+  currency      String?   @default("INR") @db.VarChar(10)
+  status        String?   @default("pending") @db.VarChar(50)
+  plan          String?   @db.VarChar(50)
+  billing_period_start DateTime? @db.Timestamptz
+  billing_period_end   DateTime? @db.Timestamptz
+  payment_id    String?   @db.VarChar(200)
+  razorpay_order_id   String?   @db.VarChar(100)
+  razorpay_payment_id String?   @db.VarChar(100)
+  invoice_url   String?
+  gst_number    String?   @db.VarChar(50)
+  gst_amount    Decimal?  @db.Decimal(10, 2)
+  description   String?
+  paid_at       DateTime? @db.Timestamptz
+  created_at    DateTime? @default(now()) @db.Timestamptz
+
+  academy       Academy?  @relation(fields: [academy_id], references: [id], onDelete: Cascade)
+
+  @@map("invoices")
+}
+
+model CheatReport {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  game_id       String?   @db.Uuid
+  reported_user String?   @db.Uuid
+  reporter_id   String?   @db.Uuid
+  engine_similarity Float?
+  suspicious_moves String[]
+  status        String?   @default("pending") @db.VarChar(50)
+  notes         String?
+  created_at    DateTime? @default(now()) @db.Timestamptz
+
+  game          Game?     @relation(fields: [game_id], references: [id], onDelete: Cascade)
+  user          User?     @relation("ReportedUser", fields: [reported_user], references: [id], onDelete: Cascade)
+  reporter      User?     @relation("Reporter", fields: [reporter_id], references: [id], onDelete: SetNull)
+
+  @@map("cheat_reports")
+}
+
+model RatingHistory {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id     String?   @db.Uuid
+  game_id     String?   @db.Uuid
+  rating      Int
+  change      Int
+  recorded_at DateTime? @default(now()) @db.Timestamptz
+
+  user        User?     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  game        Game?     @relation(fields: [game_id], references: [id], onDelete: SetNull)
+
+  @@index([user_id, recorded_at(sort: Desc)], name: "idx_rating_history_user")
+  @@map("rating_history")
+}
+
+model Announcement {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  academy_id  String?   @db.Uuid
+  author_id   String?   @db.Uuid
+  title       String    @db.VarChar(300)
+  body        String
+  target_role String?   @db.VarChar(50)
+  is_pinned   Boolean?  @default(false)
+  created_at  DateTime? @default(now()) @db.Timestamptz
+
+  academy       Academy?    @relation(fields: [academy_id], references: [id], onDelete: Cascade)
+  author        User?       @relation("AnnouncementAuthor", fields: [author_id], references: [id], onDelete: SetNull)
+
+  @@map("announcements")
+}
+
+model SubscriptionPlan {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name          String    @db.VarChar(100)
+  slug          String    @unique @db.VarChar(50)
+  price_monthly Decimal?  @db.Decimal(10, 2)
+  price_yearly  Decimal?  @db.Decimal(10, 2)
+  max_students  Int?
+  max_coaches   Int?
+  features      Json?     @default("[]")
+  is_active     Boolean?  @default(true)
+  created_at    DateTime? @default(now()) @db.Timestamptz
+
+  @@map("subscription_plans")
+}
+
+model Message {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sender_id   String?   @db.Uuid
+  receiver_id String?   @db.Uuid
+  content     String
+  is_read     Boolean?  @default(false)
+  created_at  DateTime? @default(now()) @db.Timestamptz
+
+  sender      User?     @relation("SentMessages", fields: [sender_id], references: [id], onDelete: Cascade)
+  receiver    User?     @relation("ReceivedMessages", fields: [receiver_id], references: [id], onDelete: Cascade)
+
+  @@index([sender_id, created_at(sort: Desc)], name: "idx_messages_sender")
+  @@index([receiver_id, is_read, created_at(sort: Desc)], name: "idx_messages_receiver")
+  @@map("messages")
+}
+
+model LessonProgress {
+  user_id    String    @db.Uuid
+  lesson_id  String    @db.Uuid
+  completed  Boolean?  @default(false)
+  watched_at DateTime? @default(now()) @db.Timestamptz
+
+  user       User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  lesson     Lesson    @relation(fields: [lesson_id], references: [id], onDelete: Cascade)
+
+  @@id([user_id, lesson_id])
+  @@map("lesson_progress")
+}
+
+model ActivityLog {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actor_id    String?   @db.Uuid
+  actor_name  String?
+  actor_role  String?
+  academy_id  String?   @db.Uuid
+  action      String
+  entity_type String?
+  entity_id   String?   @db.Uuid
+  metadata    Json?     @default("{}")
+  ip_address  String?
+  created_at  DateTime? @default(now()) @db.Timestamptz
+
+  actor       User?     @relation(fields: [actor_id], references: [id], onDelete: SetNull)
+  academy     Academy?  @relation(fields: [academy_id], references: [id], onDelete: Cascade)
+
+  @@index([academy_id, created_at(sort: Desc)], name: "idx_activity_logs_academy")
+  @@index([actor_id, created_at(sort: Desc)], name: "idx_activity_logs_actor")
+  @@map("activity_logs")
+}
+
+model TournamentMatch {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tournament_id   String    @db.Uuid
+  round           Int
+  board_number    Int?      @default(1)
+  white_id        String?   @db.Uuid
+  black_id        String?   @db.Uuid
+  is_bye          Boolean?  @default(false)
+  result          String?   @db.VarChar(20)
+  white_score     Decimal?  @db.Decimal(3, 1)
+  black_score     Decimal?  @db.Decimal(3, 1)
+  status          String?   @default("pending") @db.VarChar(20)
+  game_id         String?   @db.Uuid
+  completed_at    DateTime? @db.Timestamptz
+  created_at      DateTime? @default(now()) @db.Timestamptz
+
+  tournament    Tournament @relation(fields: [tournament_id], references: [id], onDelete: Cascade)
+  game          Game?      @relation(fields: [game_id], references: [id], onDelete: SetNull)
+
+  @@index([tournament_id], name: "idx_tournament_matches_tournament")
+  @@index([tournament_id, round], name: "idx_tournament_matches_round")
+  @@map("tournament_matches")
+}
+
+model CustomPuzzle {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  academy_id    String?   @db.Uuid
+  created_by    String?   @db.Uuid
+  title         String    @db.VarChar(300)
+  description   String?
+  fen           String
+  solution_moves String
+  solution_pgn  String?
+  difficulty    String?   @default("intermediate") @db.VarChar(50)
+  themes        String[]  @default([])
+  hint          String?
+  is_published  Boolean?  @default(false)
+  times_solved  Int?      @default(0)
+  created_at    DateTime? @default(now()) @db.Timestamptz
+
+  academy       Academy?  @relation(fields: [academy_id], references: [id], onDelete: Cascade)
+  author        User?     @relation(fields: [created_by], references: [id], onDelete: SetNull)
+  attempts      CustomPuzzleAttempt[]
+
+  @@index([academy_id], name: "idx_custom_puzzles_academy")
+  @@map("custom_puzzles")
+}
+
+model CustomPuzzleAttempt {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  puzzle_id     String    @db.Uuid
+  user_id       String    @db.Uuid
+  is_correct    Boolean   @default(false)
+  moves_played  String?
+  time_taken_ms Int?
+  attempted_at  DateTime? @default(now()) @db.Timestamptz
+
+  puzzle        CustomPuzzle @relation(fields: [puzzle_id], references: [id], onDelete: Cascade)
+  user          User         @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([puzzle_id, user_id])
+  @@map("custom_puzzle_attempts")
+}
+
+model McqQuestion {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  academy_id    String?   @db.Uuid
+  created_by    String?   @db.Uuid
+  question      String
+  explanation   String?
+  fen           String?
+  difficulty    String?   @default("intermediate") @db.VarChar(50)
+  topics        String[]  @default([])
+  is_published  Boolean?  @default(false)
+  allow_multiple Boolean? @default(false)
+  points        Int?      @default(1)
+  created_at    DateTime? @default(now()) @db.Timestamptz
+
+  academy       Academy?  @relation(fields: [academy_id], references: [id], onDelete: Cascade)
+  author        User?     @relation(fields: [created_by], references: [id], onDelete: SetNull)
+  options       McqOption[]
+  attempts      McqAttempt[]
+
+  @@map("mcq_questions")
+}
+
+model McqOption {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  question_id   String    @db.Uuid
+  option_text   String
+  is_correct    Boolean?  @default(false)
+  order_index   Int?      @default(0)
+
+  question      McqQuestion @relation(fields: [question_id], references: [id], onDelete: Cascade)
+
+  @@map("mcq_options")
+}
+
+model McqAttempt {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  question_id         String    @db.Uuid
+  user_id             String    @db.Uuid
+  selected_option_ids String[]  @db.Uuid
+  is_correct          Boolean   @default(false)
+  points_earned       Int?      @default(0)
+  time_taken_ms       Int?
+  attempted_at        DateTime? @default(now()) @db.Timestamptz
+
+  question            McqQuestion @relation(fields: [question_id], references: [id], onDelete: Cascade)
+  user                User        @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([question_id, user_id])
+  @@map("mcq_attempts")
+}
+
+model BatchMessage {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  batch_id    String?   @db.Uuid
+  sender_id   String?   @db.Uuid
+  content     String
+  created_at  DateTime? @default(now()) @db.Timestamptz
+
+  batch       Batch?    @relation(fields: [batch_id], references: [id], onDelete: Cascade)
+  sender      User?     @relation(fields: [sender_id], references: [id], onDelete: Cascade)
+
+  @@index([batch_id, created_at(sort: Desc)], name: "idx_batch_messages_batch")
+  @@map("batch_messages")
+}
+
+model StudentInvoice {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  invoice_number String    @unique @db.VarChar(50)
+  academy_id     String?   @db.Uuid
+  student_id     String?   @db.Uuid
+  batch_id       String?   @db.Uuid
+  status         String?   @default("draft") @db.VarChar(20)
+  currency       String?   @default("INR") @db.VarChar(10)
+  subtotal       Decimal   @db.Decimal(10, 2) @default(0)
+  tax_rate       Decimal?  @db.Decimal(5, 2) @default(18.00)
+  tax_amount     Decimal   @db.Decimal(10, 2) @default(0)
+  total          Decimal   @db.Decimal(10, 2) @default(0)
+  amount_paid    Decimal?  @db.Decimal(10, 2) @default(0)
+  line_items     Json?     @default("[]")
+  notes          String?
+  due_date       DateTime? @db.Date
+  period_from    DateTime? @db.Date
+  period_to      DateTime? @db.Date
+  paid_at        DateTime? @db.Timestamptz
+  payment_method String?   @db.VarChar(50)
+  payment_ref    String?   @db.VarChar(200)
+  issued_at      DateTime? @default(now()) @db.Timestamptz
+  created_at     DateTime? @default(now()) @db.Timestamptz
+  updated_at     DateTime? @default(now()) @db.Timestamptz
+
+  academy       Academy?   @relation(fields: [academy_id], references: [id], onDelete: Cascade)
+  student       User?      @relation(fields: [student_id], references: [id], onDelete: Cascade)
+  batch         Batch?     @relation(fields: [batch_id], references: [id], onDelete: SetNull)
+
+  @@index([academy_id, created_at(sort: Desc)], name: "idx_student_invoices_academy")
+  @@index([student_id, created_at(sort: Desc)], name: "idx_student_invoices_student")
+  @@index([status], name: "idx_student_invoices_status")
+  @@map("student_invoices")
+}

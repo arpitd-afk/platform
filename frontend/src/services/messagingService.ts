@@ -1,158 +1,207 @@
-import { v4 as uuidv4 } from 'uuid';
-import { query } from '../lib/db';
+import { Prisma } from '@prisma/client';
+import { prisma } from '../lib/prisma';
+
+export interface BatchMessageWithSender extends Prisma.BatchMessageGetPayload<{
+  include: { sender: { select: { name: true, role: true, avatar: true } } }
+}> {}
+
+export interface DirectMessageWithSender extends Prisma.MessageGetPayload<{
+  include: { sender: { select: { name: true, role: true } } }
+}> {}
 
 export class MessagingService {
-  static async listBatchMessages(batchId: string, params: { limit?: number, before?: string }, currentUser: any) {
+  static async listBatchMessages(batchId: string, params: { limit?: number, before?: string }, currentUser: { id: string, role: string }) {
     const { limit = 60, before } = params;
     
     // Auth check
-    const access = await query(
-      `SELECT 1 FROM batches b
-       LEFT JOIN batch_enrollments be ON be.batch_id = b.id AND be.student_id = $1
-       WHERE b.id = $2 AND (b.coach_id = $1 OR be.student_id = $1 OR $3 IN ('academy_admin','super_admin'))
-       LIMIT 1`,
-      [currentUser.id, batchId, currentUser.role]
-    );
-    if (!access.rows.length) throw new Error('Forbidden');
+    const batch = await prisma.batch.findUnique({
+      where: { id: batchId },
+      include: {
+        enrollments: { where: { student_id: currentUser.id, is_active: true } },
+      },
+    });
 
-    const queryParams: any[] = [batchId, limit];
-    let beforeClause = '';
+    const isAuthorized = batch && (
+      batch.coach_id === currentUser.id ||
+      batch.enrollments.length > 0 ||
+      ['academy_admin', 'super_admin'].includes(currentUser.role)
+    );
+
+    if (!isAuthorized) throw new Error('Forbidden');
+
+    const where: Prisma.BatchMessageWhereInput = { batch_id: batchId };
     if (before) {
-      queryParams.push(before);
-      beforeClause = ` AND bm.created_at < $3`;
+      where.created_at = { lt: new Date(before) };
     }
 
-    const result = await query(
-      `SELECT bm.id, bm.batch_id, bm.content, bm.created_at,
-        bm.sender_id, u.name as sender_name, u.role as sender_role, u.avatar as sender_avatar
-       FROM batch_messages bm
-       JOIN users u ON u.id = bm.sender_id
-       WHERE bm.batch_id = $1${beforeClause}
-       ORDER BY bm.created_at ASC
-       LIMIT $2`,
-      queryParams
-    );
-    return result.rows;
+    const messages = await prisma.batchMessage.findMany({
+      where,
+      include: {
+        sender: {
+          select: {
+            name: true,
+            role: true,
+            avatar: true,
+          },
+        },
+      },
+      orderBy: { created_at: 'asc' },
+      take: limit,
+    });
+
+    return messages.map((m: BatchMessageWithSender) => ({
+      ...m,
+      sender_name: m.sender?.name || 'Unknown',
+      sender_role: m.sender?.role || 'user',
+      sender_avatar: m.sender?.avatar || null,
+    }));
   }
 
-  static async sendBatchMessage(batchId: string, content: string, currentUser: any) {
-    const access = await query(
-      `SELECT 1 FROM batches b
-       LEFT JOIN batch_enrollments be ON be.batch_id = b.id AND be.student_id = $1
-       WHERE b.id = $2 AND (b.coach_id = $1 OR be.student_id = $1 OR $3 IN ('academy_admin','super_admin'))
-       LIMIT 1`,
-      [currentUser.id, batchId, currentUser.role]
-    );
-    if (!access.rows.length) throw new Error('Forbidden');
+  static async sendBatchMessage(batchId: string, content: string, currentUser: { id: string, role: string }) {
+    const batch = await prisma.batch.findUnique({
+      where: { id: batchId },
+      include: {
+        enrollments: { where: { student_id: currentUser.id, is_active: true } },
+      },
+    });
 
-    const id = uuidv4();
-    await query(
-      'INSERT INTO batch_messages (id, batch_id, sender_id, content, created_at) VALUES ($1,$2,$3,$4,NOW())',
-      [id, batchId, currentUser.id, content.trim()]
+    const isAuthorized = batch && (
+      batch.coach_id === currentUser.id ||
+      batch.enrollments.length > 0 ||
+      ['academy_admin', 'super_admin'].includes(currentUser.role)
     );
-    return id;
+
+    if (!isAuthorized) throw new Error('Forbidden');
+
+    const message = await prisma.batchMessage.create({
+      data: {
+        batch_id: batchId,
+        sender_id: currentUser.id,
+        content: content.trim(),
+      },
+    });
+    return message.id;
   }
 
   static async deleteBatchMessage(msgId: string, userId: string) {
-    const result = await query(
-      'DELETE FROM batch_messages WHERE id=$1 AND sender_id=$2 RETURNING id, batch_id',
-      [msgId, userId]
-    );
-    if (!result.rows.length) throw new Error('Not found or not yours');
-    return result.rows[0];
+    const message = await prisma.batchMessage.delete({
+      where: { id: msgId, sender_id: userId },
+    });
+    return message;
   }
 
   static async listConversations(userId: string) {
-    const result = await query(
-      `SELECT
-        other_user,
+    const conversations = await prisma.$queryRaw<any[]>`
+      SELECT
+        conv.other_user,
         u.name as other_name, u.role as other_role, u.avatar as other_avatar,
-        last_message, last_at, last_sender_id,
-        COUNT(unread.id) as unread_count
+        conv.last_message, conv.last_at, conv.last_sender_id,
+        (SELECT COUNT(*)::int FROM messages unread 
+         WHERE unread.sender_id = conv.other_user 
+           AND unread.receiver_id = ${userId}::uuid 
+           AND unread.is_read = false) as unread_count
        FROM (
-         SELECT DISTINCT ON (CASE WHEN sender_id=$1 THEN receiver_id ELSE sender_id END)
-           CASE WHEN sender_id=$1 THEN receiver_id ELSE sender_id END as other_user,
-           content as last_message, created_at as last_at, sender_id as last_sender_id
+         SELECT
+           CASE WHEN sender_id = ${userId}::uuid THEN receiver_id ELSE sender_id END as other_user,
+           content as last_message, created_at as last_at, sender_id as last_sender_id,
+           ROW_NUMBER() OVER (
+             PARTITION BY CASE WHEN sender_id = ${userId}::uuid THEN receiver_id ELSE sender_id END
+             ORDER BY created_at DESC
+           ) as rn
          FROM messages
-         WHERE sender_id=$1 OR receiver_id=$1
-         ORDER BY other_user, created_at DESC
+         WHERE sender_id = ${userId}::uuid OR receiver_id = ${userId}::uuid
        ) conv
        JOIN users u ON u.id = conv.other_user
-       LEFT JOIN messages unread ON unread.sender_id = conv.other_user
-         AND unread.receiver_id = $1 AND unread.is_read = false
-       GROUP BY other_user, u.name, u.role, u.avatar, last_message, last_at, last_sender_id
-       ORDER BY last_at DESC`,
-      [userId]
-    );
-    return result.rows;
+       WHERE conv.rn = 1
+       ORDER BY conv.last_at DESC
+    `;
+    
+    return conversations;
   }
 
   static async listDirectMessages(userId: string, otherUserId: string, limit: number = 50) {
-    const result = await query(
-      `SELECT m.*, u.name as sender_name, u.role as sender_role
-       FROM messages m
-       JOIN users u ON u.id = m.sender_id
-       WHERE (m.sender_id=$1 AND m.receiver_id=$2) OR (m.sender_id=$2 AND m.receiver_id=$1)
-       ORDER BY m.created_at ASC LIMIT $3`,
-      [userId, otherUserId, limit]
-    );
+    const messages = await prisma.message.findMany({
+      where: {
+        OR: [
+          { sender_id: userId, receiver_id: otherUserId },
+          { sender_id: otherUserId, receiver_id: userId },
+        ],
+      },
+      include: {
+        sender: { select: { name: true, role: true } },
+      },
+      orderBy: { created_at: 'asc' },
+      take: limit,
+    });
+
     // Mark as read
-    await query(
-      'UPDATE messages SET is_read=true WHERE sender_id=$1 AND receiver_id=$2 AND is_read=false',
-      [otherUserId, userId]
-    );
-    return result.rows;
+    await prisma.message.updateMany({
+      where: { sender_id: otherUserId, receiver_id: userId, is_read: false },
+      data: { is_read: true },
+    });
+
+    return messages.map((m: DirectMessageWithSender) => ({
+      ...m,
+      sender_name: m.sender?.name,
+      sender_role: m.sender?.role,
+    }));
   }
 
   static async sendDirectMessage(senderId: string, receiverId: string, content: string) {
-    const id = uuidv4();
-    await query(
-      'INSERT INTO messages (id, sender_id, receiver_id, content, is_read, created_at) VALUES ($1,$2,$3,$4,false,NOW())',
-      [id, senderId, receiverId, content.trim()]
-    );
-    return id;
+    const message = await prisma.message.create({
+      data: {
+        sender_id: senderId,
+        receiver_id: receiverId,
+        content: content.trim(),
+        is_read: false,
+      },
+    });
+    return message.id;
   }
 
-  static async listContacts(currentUser: any) {
-    let roleFilter: string[] = [];
+  static async listContacts(currentUser: { role: string, academyId: string, id: string }) {
     const role = currentUser.role;
+    let roleFilter: string[] = [];
     if (role === 'student') roleFilter = ['coach', 'academy_admin'];
     else if (role === 'coach') roleFilter = ['student', 'academy_admin'];
     else if (role === 'parent') roleFilter = ['coach', 'academy_admin'];
     else if (role === 'academy_admin') roleFilter = ['coach', 'student', 'parent'];
     else roleFilter = ['academy_admin', 'coach', 'student', 'parent', 'super_admin'];
 
-    const result = await query(
-      `SELECT id, name, email, role, avatar FROM users
-       WHERE role = ANY($1::text[]) AND academy_id = $2 AND is_active = true AND id != $3
-       ORDER BY name ASC LIMIT 100`,
-      [roleFilter, currentUser.academyId, currentUser.id]
-    );
-    return result.rows;
+    const users = await prisma.user.findMany({
+      where: {
+        role: { in: roleFilter },
+        academy_id: currentUser.academyId,
+        is_active: true,
+        id: { not: currentUser.id },
+      },
+      select: { id: true, name: true, email: true, role: true, avatar: true },
+      orderBy: { name: 'asc' },
+      take: 100,
+    });
+
+    return users;
   }
 
   static async getUnreadCount(userId: string) {
-    const result = await query(
-      'SELECT COUNT(*) as count FROM messages WHERE receiver_id=$1 AND is_read=false',
-      [userId]
-    );
-    return parseInt(result.rows[0].count);
+    const count = await prisma.message.count({
+      where: { receiver_id: userId, is_read: false },
+    });
+    return count;
   }
 
   static async markAsRead(userId: string, otherUserId: string) {
-    await query(
-      'UPDATE messages SET is_read=true WHERE sender_id=$1 AND receiver_id=$2 AND is_read=false',
-      [otherUserId, userId]
-    );
+    await prisma.message.updateMany({
+      where: { sender_id: otherUserId, receiver_id: userId, is_read: false },
+      data: { is_read: true },
+    });
   }
 
   static async deleteMessage(msgId: string, userId: string) {
-    const result = await query(
-      'DELETE FROM messages WHERE id=$1 AND sender_id=$2 RETURNING id, receiver_id',
-      [msgId, userId]
-    );
-    if (!result.rows.length) throw new Error('Not found or not yours');
-    return result.rows[0];
+    const message = await prisma.message.delete({
+      where: { id: msgId, sender_id: userId },
+    });
+    return message;
   }
 }
 

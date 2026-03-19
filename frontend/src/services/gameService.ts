@@ -1,6 +1,5 @@
 import { Chess } from 'chess.js';
-import { v4 as uuidv4 } from 'uuid';
-import { query, transaction } from '../lib/db';
+import { prisma } from '../lib/prisma';
 import { redisSession } from '../lib/redis';
 import logger from '../lib/logger';
 import { Game } from '../types/models';
@@ -58,19 +57,32 @@ export class GameService {
    */
   static async updateRatings(whiteId: string, blackId: string, winner: 'white' | 'black' | null) {
     try {
-      const [whiteRes, blackRes] = await Promise.all([
-        query('SELECT rating FROM users WHERE id = $1', [whiteId]),
-        query('SELECT rating FROM users WHERE id = $1', [blackId]),
-      ]);
+      const whiteUser = await prisma.user.findUnique({ where: { id: whiteId }, select: { rating: true } });
+      const blackUser = await prisma.user.findUnique({ where: { id: blackId }, select: { rating: true } });
 
-      const whiteRating = whiteRes.rows[0]?.rating || 1200;
-      const blackRating = blackRes.rows[0]?.rating || 1200;
+      const whiteRating = whiteUser?.rating || 1200;
+      const blackRating = blackUser?.rating || 1200;
 
       const newRatings = this.calculateNewRatings(whiteRating, blackRating, winner);
 
-      await Promise.all([
-        query('UPDATE users SET rating = $1 WHERE id = $2', [newRatings.white, whiteId]),
-        query('UPDATE users SET rating = $1 WHERE id = $2', [newRatings.black, blackId]),
+      await prisma.$transaction([
+        prisma.user.update({ where: { id: whiteId }, data: { rating: newRatings.white } }),
+        prisma.user.update({ where: { id: blackId }, data: { rating: newRatings.black } }),
+        // Log rating history
+        prisma.ratingHistory.create({
+          data: {
+            user_id: whiteId,
+            rating: newRatings.white,
+            change: newRatings.white - whiteRating,
+          }
+        }),
+        prisma.ratingHistory.create({
+          data: {
+            user_id: blackId,
+            rating: newRatings.black,
+            change: newRatings.black - blackRating,
+          }
+        })
       ]);
       
       return newRatings;
@@ -84,7 +96,6 @@ export class GameService {
    * Initialize a new game state
    */
   static initializeGame(whiteId: string, blackId: string, timeControl: string, mode: Game['mode']): GameState {
-    const gameId = uuidv4();
     const chess = new Chess();
     
     const [baseMinutes, incrementSeconds] = timeControl.split('+').map(Number);
@@ -92,7 +103,7 @@ export class GameService {
     const incrementMs = (incrementSeconds || 0) * 1000;
 
     return {
-      id: gameId,
+      id: '', // to be filled after DB creation
       fen: chess.fen(),
       pgn: '',
       whiteId,
@@ -108,57 +119,67 @@ export class GameService {
     };
   }
 
-  static async getGameById(id: string): Promise<Game | null> {
+  static async getGameById(id: string): Promise<any | null> {
     // Try Redis session state first for active games
     try {
       const cached = await redisSession.getGameState(id);
-      if (cached) return cached as unknown as Game;
+      if (cached) return cached;
     } catch (err) {
       logger.error('Redis getGameState error:', err);
     }
 
-    const result = await query(
-      `SELECT g.*,
-        wu.name as white_name, wu.rating as white_rating, wu.avatar as white_avatar,
-        bu.name as black_name, bu.rating as black_rating, bu.avatar as black_avatar
-       FROM games g
-       LEFT JOIN users wu ON g.white_player_id = wu.id
-       LEFT JOIN users bu ON g.black_player_id = bu.id
-       WHERE g.id = $1`,
-      [id]
-    );
+    const game = await prisma.game.findUnique({
+      where: { id },
+      include: {
+        white_player: { select: { name: true, rating: true, avatar: true } },
+        black_player: { select: { name: true, rating: true, avatar: true } },
+      },
+    });
 
-    if (result.rows.length === 0) return null;
-    return result.rows[0] as Game;
+    if (!game) return null;
+
+    return {
+      ...game,
+      white_name: game.white_player?.name,
+      white_rating: game.white_player?.rating,
+      white_avatar: game.white_player?.avatar,
+      black_name: game.black_player?.name,
+      black_rating: game.black_player?.rating,
+      black_avatar: game.black_player?.avatar,
+    };
   }
 
   static async listGames(params: { userId: string, status?: string, page?: number, limit?: number }) {
     const { userId, status, page = 1, limit = 20 } = params;
-    const offset = (page - 1) * limit;
+    const skip = (page - 1) * limit;
 
-    let whereClause = '(g.white_player_id = $1 OR g.black_player_id = $1)';
-    const queryParams: any[] = [userId, limit, offset];
+    const where: any = {
+      OR: [{ white_player_id: userId }, { black_player_id: userId }],
+    };
 
     if (status) {
-      whereClause += ` AND g.status = $${queryParams.length + 1}`;
-      queryParams.push(status);
+      where.status = status;
     }
 
-    const result = await query(
-      `SELECT g.id, g.status, g.time_control, g.mode, g.created_at, g.result,
-        wu.name as white_name, wu.rating as white_rating,
-        bu.name as black_name, bu.rating as black_rating
-       FROM games g
-       LEFT JOIN users wu ON g.white_player_id = wu.id
-       LEFT JOIN users bu ON g.black_player_id = bu.id
-       WHERE ${whereClause}
-       ORDER BY g.created_at DESC
-       LIMIT $2 OFFSET $3`,
-      queryParams
-    );
+    const games = await prisma.game.findMany({
+      where,
+      include: {
+        white_player: { select: { name: true, rating: true } },
+        black_player: { select: { name: true, rating: true } },
+      },
+      orderBy: { created_at: 'desc' },
+      skip,
+      take: limit,
+    });
 
     return {
-      games: result.rows,
+      games: games.map(g => ({
+        ...g,
+        white_name: g.white_player?.name,
+        white_rating: g.white_player?.rating,
+        black_name: g.black_player?.name,
+        black_rating: g.black_player?.rating,
+      })),
       pagination: { page, limit }
     };
   }
@@ -172,22 +193,36 @@ export class GameService {
     classroomId?: string
   }) {
     const { whiteId, blackId, timeControl = '10+5', mode = 'casual', tournamentId, classroomId } = data;
-    const gameState = this.initializeGame(whiteId, blackId, timeControl, mode);
+    const initialTemp = this.initializeGame(whiteId, blackId, timeControl, mode);
 
-    await query(
-      `INSERT INTO games (id, white_player_id, black_player_id, fen, pgn, status, time_control,
-        white_time_ms, black_time_ms, increment_ms, mode, tournament_id, classroom_id, created_at)
-       VALUES ($1,$2,$3,$4,$5,'waiting',$6,$7,$8,$9,$10,$11,$12,NOW())`,
-      [gameState.id, whiteId, blackId, gameState.fen, '', timeControl,
-        gameState.whiteTimeMs, gameState.blackTimeMs, gameState.incrementMs, mode, tournamentId || null, classroomId || null]
-    );
+    const game = await prisma.game.create({
+      data: {
+        white_player_id: whiteId,
+        black_player_id: blackId,
+        fen: initialTemp.fen,
+        pgn: initialTemp.pgn,
+        status: 'waiting',
+        time_control: timeControl,
+        white_time_ms: initialTemp.whiteTimeMs,
+        black_time_ms: initialTemp.blackTimeMs,
+        increment_ms: initialTemp.incrementMs,
+        mode,
+        tournament_id: tournamentId || null,
+        classroom_id: classroomId || null,
+      },
+    });
 
-    await redisSession.setGameState(gameState.id, gameState);
+    const gameState: GameState = {
+      ...initialTemp,
+      id: game.id,
+    };
+
+    await redisSession.setGameState(game.id, gameState);
 
     // Notify via socket
     if ((global as any).io) {
-      (global as any).io.to(`user:${whiteId}`).emit('game:created', { gameId: gameState.id, color: 'white' });
-      (global as any).io.to(`user:${blackId}`).emit('game:created', { gameId: gameState.id, color: 'black' });
+      (global as any).io.to(`user:${whiteId}`).emit('game:created', { gameId: game.id, color: 'white' });
+      (global as any).io.to(`user:${blackId}`).emit('game:created', { gameId: game.id, color: 'black' });
     }
 
     return gameState;
@@ -239,7 +274,7 @@ export class GameService {
     }
 
     // Check game over
-    let gameOverResult: Game['result'] | null = null;
+    let gameOverResult: any | null = null;
     if (chess.isGameOver()) {
       gameState.status = 'completed';
       if (chess.isCheckmate()) {
@@ -270,10 +305,16 @@ export class GameService {
 
     // Persist to DB periodically (every 10 moves or game over)
     if (gameState.moves.length % 10 === 0 || gameOverResult) {
-      await query(
-        'UPDATE games SET fen = $1, pgn = $2, status = $3, result = $4, updated_at = NOW() WHERE id = $5',
-        [gameState.fen, gameState.pgn, gameState.status, gameState.result ? JSON.stringify(gameState.result) : null, gameId]
-      );
+      await prisma.game.update({
+        where: { id: gameId },
+        data: {
+          fen: gameState.fen,
+          pgn: gameState.pgn,
+          status: gameState.status,
+          result: gameState.result || undefined,
+          updated_at: new Date(),
+        },
+      });
 
       if (gameOverResult && gameState.mode === 'rated') {
         await this.updateRatings(gameState.whiteId, gameState.blackId, gameOverResult.winner);
@@ -295,10 +336,10 @@ export class GameService {
     
     await redisSession.setGameState(gameId, gameState);
 
-    await query(
-      "UPDATE games SET status = 'completed', result = $1, updated_at = NOW() WHERE id = $2",
-      [JSON.stringify(gameState.result), gameId]
-    );
+    await prisma.game.update({
+      where: { id: gameId },
+      data: { status: 'completed', result: gameState.result as any, updated_at: new Date() },
+    });
 
     if (gameState.mode === 'rated') {
       await this.updateRatings(gameState.whiteId, gameState.blackId, winner);
@@ -312,18 +353,27 @@ export class GameService {
   }
 
   static async getAnalysis(gameId: string) {
-    const result = await query('SELECT * FROM game_analysis WHERE game_id=$1', [gameId]);
-    return result.rows[0] || null;
+    const game = await prisma.game.findUnique({
+      where: { id: gameId },
+      select: { analysis: true },
+    });
+    return game?.analysis;
   }
 
   static async analyze(gameId: string) {
-    const existing = await query('SELECT id FROM game_analysis WHERE game_id=$1', [gameId]);
-    if (existing.rows.length > 0) return { message: 'Analysis already exists or is queued' };
+    const game = await prisma.game.findUnique({
+      where: { id: gameId },
+      select: { analysis: true },
+    });
+    
+    if (game?.analysis) return { message: 'Analysis already exists or is queued' };
 
-    await query(
-      'INSERT INTO game_analysis (id, game_id, status, created_at) VALUES ($1, $2, $3, NOW())',
-      [uuidv4(), gameId, 'queued']
-    );
+    await prisma.game.update({
+      where: { id: gameId },
+      data: {
+        analysis: { status: 'queued' } as any,
+      },
+    });
     return { message: 'Analysis queued' };
   }
 }

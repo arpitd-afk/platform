@@ -94,6 +94,7 @@ export default function RegisterPage() {
               value={form.name}
               onChange={(e) => up("name", e.target.value)}
               autoFocus
+              autoComplete="name"
             />
           </div>
           {form.role === "academy_admin" && (
@@ -115,6 +116,7 @@ export default function RegisterPage() {
               placeholder="you@example.com"
               value={form.email}
               onChange={(e) => up("email", e.target.value)}
+              autoComplete="email"
             />
           </div>
           <div>
@@ -126,6 +128,7 @@ export default function RegisterPage() {
                 placeholder="Min. 6 characters"
                 value={form.password}
                 onChange={(e) => up("password", e.target.value)}
+                autoComplete="new-password"
               />
               <button
                 type="button"

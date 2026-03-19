@@ -23,7 +23,7 @@ function LinkParentModal({ student, onClose }: { student: any; onClose: () => vo
     <Modal title={`Link Parent – ${student.name}`} onClose={onClose}>
       <div className="space-y-4">
         <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-          Enter the parent's email. A new parent account will be created if they don't have one (temp password: Parent@123).
+          Enter the parent&apos;s email. A new parent account will be created if they don&apos;t have one (temp password: Parent@123).
         </p>
         <div>
           <label className="label">Parent Email *</label>

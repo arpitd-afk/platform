@@ -1,5 +1,6 @@
-import { query } from "../lib/db";
+import { prisma } from "../lib/prisma";
 import logger from "../lib/logger";
+import { ActivityLog } from "../types/models";
 
 export interface ActivityLogOptions {
   actorId: string;
@@ -26,21 +27,19 @@ export class ActivityLogService {
     ip,
   }: ActivityLogOptions) {
     try {
-      await query(
-        `INSERT INTO activity_logs (actor_id, actor_name, actor_role, academy_id, action, entity_type, entity_id, metadata, ip_address, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())`,
-        [
-          actorId,
-          actorName,
-          actorRole,
-          academyId,
+      await prisma.activityLog.create({
+        data: {
+          actor_id: actorId,
+          actor_name: actorName,
+          actor_role: actorRole,
+          academy_id: academyId,
           action,
-          entityType,
-          entityId,
+          entity_type: entityType,
+          entity_id: entityId,
           metadata,
-          ip,
-        ],
-      );
+          ip_address: ip,
+        },
+      });
     } catch (err: any) {
       logger.error("Failed to log activity:", err.message);
     }
@@ -54,39 +53,24 @@ export class ActivityLogService {
     offset?: number;
   }) {
     const { userId, academyId, action, limit = 50, offset = 0 } = params;
-    const conditions = [];
-    const queryParams = [];
+    
+    const where: any = {};
+    if (userId) where.actor_id = userId;
+    if (academyId) where.academy_id = academyId;
+    if (action) where.action = action;
 
-    if (userId) {
-      queryParams.push(userId);
-      conditions.push(`actor_id = $${queryParams.length}`);
-    }
-    if (academyId) {
-      queryParams.push(academyId);
-      conditions.push(`academy_id = $${queryParams.length}`);
-    }
-    if (action) {
-      queryParams.push(action);
-      conditions.push(`action = $${queryParams.length}`);
-    }
-
-    const where =
-      conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
-    queryParams.push(limit, offset);
-
-    const result = await query(
-      `SELECT al.*, a.name as academy_name 
-       FROM activity_logs al 
-       LEFT JOIN academies a ON al.academy_id = a.id
-       ${where
-         .replace(/actor_id/g, "al.actor_id")
-         .replace(/academy_id/g, "al.academy_id")
-         .replace(/action/g, "al.action")} 
-       ORDER BY al.created_at DESC 
-       LIMIT $${queryParams.length - 1} OFFSET $${queryParams.length}`,
-      queryParams,
-    );
-    return result.rows;
+    return prisma.activityLog.findMany({
+      where,
+      include: {
+        academy: { select: { name: true } },
+      },
+      orderBy: { created_at: 'desc' },
+      take: limit,
+      skip: offset,
+    }).then((logs: any[]) => logs.map(l => ({
+      ...l,
+      academy_name: (l as any).academy?.name,
+    })));
   }
 }
 

@@ -1,27 +1,49 @@
-import { query } from '../lib/db';
+import { prisma } from '../lib/prisma';
 
 export class NotificationService {
   static async listNotifications(userId: string, params: { page?: number, limit?: number }) {
     const { page = 1, limit = 20 } = params;
     const offset = (page - 1) * limit;
-    const result = await query(
-      'SELECT * FROM notifications WHERE user_id=$1 ORDER BY created_at DESC LIMIT $2 OFFSET $3',
-      [userId, limit, offset]
-    );
-    return result.rows;
+    
+    return prisma.notification.findMany({
+      where: { user_id: userId },
+      orderBy: { created_at: 'desc' },
+      take: limit,
+      skip: offset,
+    });
   }
 
   static async getUnreadCount(userId: string) {
-    const result = await query('SELECT COUNT(*) FROM notifications WHERE user_id=$1 AND is_read=false', [userId]);
-    return parseInt(result.rows[0].count);
+    return prisma.notification.count({
+      where: {
+        user_id: userId,
+        is_read: false,
+      },
+    });
   }
 
   static async markAsRead(notificationId: string, userId: string) {
-    await query('UPDATE notifications SET is_read=true WHERE id=$1 AND user_id=$2', [notificationId, userId]);
+    await prisma.notification.updateMany({
+      where: {
+        id: notificationId,
+        user_id: userId,
+      },
+      data: {
+        is_read: true,
+      },
+    });
   }
 
   static async markAllAsRead(userId: string) {
-    await query('UPDATE notifications SET is_read=true WHERE user_id=$1', [userId]);
+    await prisma.notification.updateMany({
+      where: {
+        user_id: userId,
+        is_read: false,
+      },
+      data: {
+        is_read: true,
+      },
+    });
   }
 
   static async createNotification(data: {
@@ -32,10 +54,15 @@ export class NotificationService {
     data?: any;
   }) {
     const { userId, type, title, body, data: meta } = data;
-    await query(
-      'INSERT INTO notifications (id, user_id, type, title, body, data, created_at) VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, NOW())',
-      [userId, type, title, body, meta ? JSON.stringify(meta) : null]
-    );
+    await prisma.notification.create({
+      data: {
+        user_id: userId,
+        type,
+        title,
+        body,
+        data: meta || {},
+      },
+    });
   }
 }
 

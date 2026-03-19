@@ -1,117 +1,175 @@
-import { v4 as uuidv4 } from 'uuid';
-import { query } from '../lib/db';
+import { Prisma } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 
 export class BatchService {
   static async listBatches(params: { academyId?: string, coachId?: string, level?: string }) {
     const { academyId, coachId, level } = params;
-    const conditions = ['1=1'];
-    const queryParams: any[] = [];
+    
+    const where: Prisma.BatchWhereInput = { is_active: true };
+    if (academyId) where.academy_id = academyId;
+    if (coachId) where.coach_id = coachId;
+    if (level) where.level = level;
 
-    if (academyId) {
-      queryParams.push(academyId);
-      conditions.push(`b.academy_id=$${queryParams.length}`);
-    }
-    if (coachId) {
-      queryParams.push(coachId);
-      conditions.push(`b.coach_id=$${queryParams.length}`);
-    }
-    if (level) {
-      queryParams.push(level);
-      conditions.push(`b.level=$${queryParams.length}`);
-    }
-
-    const result = await query(
-      `SELECT b.*, u.name as coach_name,
-        COUNT(DISTINCT be.student_id) as student_count
-       FROM batches b
-       LEFT JOIN users u ON b.coach_id = u.id
-       LEFT JOIN batch_enrollments be ON be.batch_id = b.id
-       WHERE ${conditions.join(' AND ')}
-       GROUP BY b.id, u.name
-       ORDER BY b.created_at DESC`,
-      queryParams
-    );
-    return result.rows;
+    const batches = await prisma.batch.findMany({
+      where,
+      include: {
+        coach: {
+          select: {
+            name: true,
+          },
+        },
+        _count: {
+          select: {
+            enrollments: { where: { is_active: true } },
+          },
+        },
+      },
+      orderBy: { created_at: 'desc' },
+    });
+    return batches.map(b => ({
+      ...b,
+      coach_name: (b.coach as any)?.name,
+      student_count: b._count.enrollments,
+    }));
   }
 
   static async getById(id: string) {
-    const result = await query(
-      `SELECT b.*, u.name as coach_name, u.email as coach_email,
-        COUNT(DISTINCT be.student_id) as student_count
-       FROM batches b
-       LEFT JOIN users u ON b.coach_id = u.id
-       LEFT JOIN batch_enrollments be ON be.batch_id = b.id
-       WHERE b.id = $1 GROUP BY b.id, u.name, u.email`,
-      [id]
-    );
-    return result.rows[0] || null;
+    const batch = await prisma.batch.findUnique({
+      where: { id },
+      include: {
+        coach: {
+          select: {
+            name: true,
+            email: true,
+          },
+        },
+        _count: {
+          select: {
+            enrollments: { where: { is_active: true } },
+          },
+        },
+      },
+    });
+
+    if (!batch) return null;
+
+    return {
+      ...batch,
+      coach_name: batch.coach?.name,
+      coach_email: batch.coach?.email,
+      student_count: batch._count.enrollments,
+    };
   }
 
   static async createBatch(data: any, academyId: string) {
     const { name, coachId, level = 'beginner', maxStudents = 20, schedule, description } = data;
-    const id = uuidv4();
-    await query(
-      'INSERT INTO batches (id, academy_id, coach_id, name, level, max_students, schedule, description, is_active, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,true,NOW())',
-      [id, academyId, coachId, name, level, maxStudents, schedule || null, description || null]
-    );
-    return id;
+    
+    const batch = await prisma.batch.create({
+      data: {
+        academy_id: academyId,
+        coach_id: coachId,
+        name,
+        level,
+        max_students: maxStudents,
+        schedule: schedule || null,
+        description: description || null,
+        is_active: true,
+      },
+    });
+
+    return batch.id;
   }
 
   static async updateBatch(id: string, data: any) {
     const { name, coachId, level, maxStudents, schedule, description, isActive } = data;
-    const sets = [];
-    const params = [];
-
-    if (name !== undefined) { params.push(name); sets.push('name=$' + params.length); }
-    if (coachId !== undefined) { params.push(coachId); sets.push('coach_id=$' + params.length); }
-    if (level !== undefined) { params.push(level); sets.push('level=$' + params.length); }
-    if (maxStudents !== undefined) { params.push(maxStudents); sets.push('max_students=$' + params.length); }
-    if (schedule !== undefined) { params.push(schedule); sets.push('schedule=$' + params.length); }
-    if (description !== undefined) { params.push(description); sets.push('description=$' + params.length); }
-    if (isActive !== undefined) { params.push(isActive); sets.push('is_active=$' + params.length); }
-
-    if (sets.length > 0) {
-      params.push(id);
-      await query('UPDATE batches SET ' + sets.join(', ') + ' WHERE id=$' + params.length, params);
-    }
+    
+    await prisma.batch.update({
+      where: { id },
+      data: {
+        name: name !== undefined ? name : undefined,
+        coach_id: coachId !== undefined ? coachId : undefined,
+        level: level !== undefined ? level : undefined,
+        max_students: maxStudents !== undefined ? maxStudents : undefined,
+        schedule: schedule !== undefined ? schedule : undefined,
+        description: description !== undefined ? description : undefined,
+        is_active: isActive !== undefined ? isActive : undefined,
+      },
+    });
   }
 
   static async listStudents(batchId: string) {
-    const result = await query(
-      `SELECT u.id, u.name, u.email, u.rating, u.avatar, be.enrolled_at
-       FROM batch_enrollments be
-       JOIN users u ON be.student_id = u.id
-       WHERE be.batch_id = $1
-       ORDER BY u.name ASC`,
-      [batchId]
-    );
-    return result.rows;
+    const enrollments = await prisma.batchEnrollment.findMany({
+      where: { batch_id: batchId, is_active: true },
+      include: {
+        student: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            rating: true,
+            avatar: true,
+          },
+        },
+      },
+      orderBy: {
+        student: { name: 'asc' },
+      },
+    });
+
+    return enrollments.map(e => ({
+      ...e.student,
+      enrolled_at: e.enrolled_at,
+    }));
   }
 
   static async enrollStudent(batchId: string, studentId: string) {
-    const exists = await query('SELECT id FROM batch_enrollments WHERE batch_id=$1 AND student_id=$2', [batchId, studentId]);
-    if (exists.rows.length) throw new Error('Already enrolled');
-    await query(
-      'INSERT INTO batch_enrollments (id, batch_id, student_id, enrolled_at) VALUES ($1,$2,$3,NOW())',
-      [uuidv4(), batchId, studentId]
-    );
+    await prisma.batchEnrollment.upsert({
+      where: { batch_id_student_id: { batch_id: batchId, student_id: studentId } },
+      update: { is_active: true },
+      create: {
+        batch_id: batchId,
+        student_id: studentId,
+        is_active: true,
+      },
+    });
   }
 
   static async removeStudent(batchId: string, studentId: string) {
-    await query('DELETE FROM batch_enrollments WHERE batch_id=$1 AND student_id=$2', [batchId, studentId]);
+    await prisma.batchEnrollment.update({
+      where: { batch_id_student_id: { batch_id: batchId, student_id: studentId } },
+      data: { is_active: false },
+    });
   }
 
   static async getBatchAttendance(batchId: string) {
-    const result = await query(
-      `SELECT ca.*, c.name as classroom_name, c.scheduled_at, u.name as student_name
-       FROM classroom_attendance ca
-       JOIN classrooms c ON ca.classroom_id = c.id
-       JOIN users u ON ca.student_id = u.id
-       WHERE c.batch_id = $1
-       ORDER BY c.scheduled_at DESC`,
-      [batchId]
-    );
-    return result.rows;
+    const attendance = await prisma.classroomAttendance.findMany({
+      where: {
+        classroom: { batch_id: batchId },
+      },
+      include: {
+        classroom: {
+          select: {
+            title: true, // using 'title' as 'name' was used in sql
+            scheduled_at: true,
+          },
+        },
+        student: {
+          select: {
+            name: true,
+          },
+        },
+      },
+      orderBy: {
+        classroom: { scheduled_at: 'desc' },
+      },
+    });
+
+    return attendance.map(a => ({
+      ...a,
+      classroom_name: a.classroom.title,
+      scheduled_at: a.classroom.scheduled_at,
+      student_name: a.student.name,
+    }));
   }
 }
 

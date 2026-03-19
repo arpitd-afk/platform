@@ -1,70 +1,73 @@
-import { v4 as uuidv4 } from 'uuid';
-import { query } from '../lib/db';
+import { Prisma } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 
 export class StudentInvoiceService {
   static async generateInvoiceNumber(academyId: string) {
-    const res = await query("SELECT subdomain FROM academies WHERE id=$1", [academyId]);
-    const prefix = (res.rows[0]?.subdomain || 'INV').toUpperCase().slice(0, 4);
-    const seq = await query("SELECT nextval('invoice_number_seq') AS n");
-    return `${prefix}-${String(seq.rows[0].n).padStart(5, '0')}`;
+    const academy = await prisma.academy.findUnique({
+      where: { id: academyId },
+      select: { subdomain: true },
+    });
+    const prefix = (academy?.subdomain || 'INV').toUpperCase().slice(0, 4);
+    
+    // Prisma doesn't directly support sequence nextval in a cross-DB way without raw query
+    const seq: any[] = await prisma.$queryRaw`SELECT nextval('invoice_number_seq') AS n`;
+    const n = seq[0]?.n || 0;
+    
+    return `${prefix}-${String(n).padStart(5, '0')}`;
   }
 
-  static async listInvoices(params: { studentId?: string, status?: string, batchId?: string, academyId: string }, currentUser: any) {
+  static async listInvoices(params: { studentId?: string, status?: string, batchId?: string, academyId: string }, currentUser: { id: string, role: string }) {
     const { studentId, status, batchId, academyId } = params;
-    const conds = ['si.academy_id = $1'];
-    const queryParams: any[] = [academyId];
+    const where: Prisma.StudentInvoiceWhereInput = { academy_id: academyId };
 
     if (['academy_admin', 'super_admin'].includes(currentUser.role)) {
       if (studentId) {
-        queryParams.push(studentId);
-        conds.push(`si.student_id = $${queryParams.length}`);
+        where.student_id = studentId;
       }
     } else if (currentUser.role === 'parent') {
-      queryParams.push(currentUser.id);
-      conds.push(`si.student_id IN (SELECT student_id FROM parent_student WHERE parent_id = $${queryParams.length})`);
+      where.student = {
+        student_of: { some: { parent_id: currentUser.id } }
+      };
     } else {
-      queryParams.push(currentUser.id);
-      conds.push(`si.student_id = $${queryParams.length}`);
+      where.student_id = currentUser.id;
     }
 
     if (status) {
-      queryParams.push(status);
-      conds.push(`si.status = $${queryParams.length}`);
+      where.status = status;
     }
     if (batchId) {
-      queryParams.push(batchId);
-      conds.push(`si.batch_id = $${queryParams.length}`);
+      where.batch_id = batchId;
     }
 
-    const result = await query(
-      `SELECT si.*,
-         u.name as student_name, u.email as student_email, u.phone as student_phone,
-         b.name as batch_name
-       FROM student_invoices si
-       JOIN users u ON u.id = si.student_id
-       LEFT JOIN batches b ON b.id = si.batch_id
-       WHERE ${conds.join(' AND ')}
-       ORDER BY si.created_at DESC`,
-      queryParams
-    );
-    return result.rows;
+    const invoices = await prisma.studentInvoice.findMany({
+      where,
+      include: {
+        student: { select: { name: true, email: true, phone: true } },
+        batch: { select: { name: true } },
+      },
+      orderBy: { created_at: 'desc' },
+    });
+
+    return invoices.map((inv) => ({
+      ...inv,
+      student_name: (inv.student as any)?.name,
+      student_email: (inv.student as any)?.email,
+      student_phone: (inv.student as any)?.phone,
+      batch_name: (inv.batch as any)?.name,
+    }));
   }
 
-  static async getById(id: string, currentUser: any) {
-    const result = await query(
-      `SELECT si.*,
-         u.name as student_name, u.email as student_email, u.phone as student_phone,
-         b.name as batch_name,
-         a.name as academy_name, a.settings as academy_settings, a.logo_url
-       FROM student_invoices si
-       JOIN users u ON u.id = si.student_id
-       LEFT JOIN batches b ON b.id = si.batch_id
-       JOIN academies a ON a.id = si.academy_id
-       WHERE si.id = $1`,
-      [id]
-    );
-    if (!result.rows.length) return null;
-    const inv = result.rows[0];
+  static async getById(id: string, currentUser: { id: string, role: string }) {
+    const inv = await prisma.studentInvoice.findUnique({
+      where: { id },
+      include: {
+        student: { select: { name: true, email: true, phone: true } },
+        batch: { select: { name: true } },
+        academy: { select: { name: true, settings: true, logo_url: true } },
+      },
+    });
+
+    if (!inv) return null;
 
     // Access check
     if (currentUser.role === 'student' && inv.student_id !== currentUser.id) {
@@ -72,11 +75,22 @@ export class StudentInvoiceService {
     }
     // Parent access check
     if (currentUser.role === 'parent') {
-      const isLinked = await query('SELECT 1 FROM parent_student WHERE parent_id=$1 AND student_id=$2', [currentUser.id, inv.student_id]);
-      if (!isLinked.rows.length) throw new Error('Forbidden');
+      const isLinked = await prisma.parentStudent.findUnique({
+        where: { parent_id_student_id: { parent_id: currentUser.id, student_id: inv.student_id || '' } }
+      });
+      if (!isLinked) throw new Error('Forbidden');
     }
 
-    return inv;
+    return {
+      ...inv,
+      student_name: inv.student?.name,
+      student_email: inv.student?.email,
+      student_phone: inv.student?.phone,
+      batch_name: inv.batch?.name,
+      academy_name: inv.academy?.name,
+      academy_settings: inv.academy?.settings,
+      logo_url: inv.academy?.logo_url,
+    };
   }
 
   static async createInvoice(data: any, academyId: string) {
@@ -90,80 +104,121 @@ export class StudentInvoiceService {
     const taxAmount = +(subtotal * (taxRate / 100)).toFixed(2);
     const total = +(subtotal + taxAmount).toFixed(2);
 
-    const id = uuidv4();
     const invoiceNumber = await this.generateInvoiceNumber(academyId);
 
-    await query(
-      `INSERT INTO student_invoices
-         (id, invoice_number, academy_id, student_id, batch_id, status, currency,
-          subtotal, tax_rate, tax_amount, total, line_items, notes,
-          due_date, period_from, period_to, issued_at, created_at, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,NOW(),NOW(),NOW())`,
-      [id, invoiceNumber, academyId, studentId, batchId || null, status, currency,
-        subtotal, taxRate, taxAmount, total, JSON.stringify(lineItems), notes || null,
-        dueDate || null, periodFrom || null, periodTo || null]
-    );
+    const invoice = await prisma.studentInvoice.create({
+      data: {
+        invoice_number: invoiceNumber,
+        academy_id: academyId,
+        student_id: studentId,
+        batch_id: batchId || null,
+        status,
+        currency,
+        subtotal,
+        tax_rate: taxRate,
+        tax_amount: taxAmount,
+        total,
+        line_items: lineItems || [],
+        notes: notes || null,
+        due_date: dueDate ? new Date(dueDate) : null,
+        period_from: periodFrom ? new Date(periodFrom) : null,
+        period_to: periodTo ? new Date(periodTo) : null,
+        issued_at: new Date(),
+      },
+    });
 
-    return { id, invoiceNumber };
+    return { id: invoice.id, invoiceNumber: invoice.invoice_number };
   }
 
   static async updateInvoice(id: string, data: any, academyId: string) {
     const { status, paymentRef, paymentMethod, amountPaid, notes, dueDate } = data;
-    const sets = ['updated_at=NOW()'];
-    const params: any[] = [id, academyId];
 
-    if (status) { params.push(status); sets.push(`status=$${params.length}`); }
-    if (paymentRef) { params.push(paymentRef); sets.push(`payment_ref=$${params.length}`); }
-    if (paymentMethod) { params.push(paymentMethod); sets.push(`payment_method=$${params.length}`); }
-    if (amountPaid != null) { params.push(amountPaid); sets.push(`amount_paid=$${params.length}`); }
-    if (notes != null) { params.push(notes); sets.push(`notes=$${params.length}`); }
-    if (dueDate) { params.push(dueDate); sets.push(`due_date=$${params.length}`); }
-    if (status === 'paid') sets.push('paid_at=NOW()');
+    const updateData: Prisma.StudentInvoiceUpdateInput = {
+      updated_at: new Date(),
+    };
 
-    await query(`UPDATE student_invoices SET ${sets.join(',')} WHERE id=$1 AND academy_id=$2`, params);
+    if (status) updateData.status = status;
+    if (paymentRef) updateData.payment_ref = paymentRef;
+    if (paymentMethod) updateData.payment_method = paymentMethod;
+    if (amountPaid != null) updateData.amount_paid = amountPaid;
+    if (notes != null) updateData.notes = notes;
+    if (dueDate) updateData.due_date = new Date(dueDate);
+
+    if (status === 'paid') {
+      updateData.paid_at = new Date();
+    }
+
+    const invoice = await prisma.studentInvoice.update({
+      where: { id, academy_id: academyId },
+      data: updateData,
+    });
 
     if (status === 'paid') {
       try {
-        const invRes = await query('SELECT student_id, total, invoice_number FROM student_invoices WHERE id=$1', [id]);
-        if (invRes.rows.length) {
-          const { student_id, total, invoice_number } = invRes.rows[0];
-          await query(
-            "INSERT INTO notifications (id, user_id, type, title, body, created_at) VALUES (gen_random_uuid(), $1, 'payment', $2, $3, NOW())",
-            [student_id, `Payment Success: ${invoice_number}`, `Your payment of ${total} for invoice ${invoice_number} has been received.`]
-          );
-          const parents = await query('SELECT parent_id FROM parent_student WHERE student_id=$1', [student_id]);
-          for (const p of parents.rows) {
-            await query(
-              "INSERT INTO notifications (id, user_id, type, title, body, created_at) VALUES (gen_random_uuid(), $1, 'payment', $2, $3, NOW())",
-              [p.parent_id, `Payment Success: ${invoice_number}`, `Payment for your child's invoice ${invoice_number} (${total}) has been received.`]
-            );
+        const studentId = invoice.student_id;
+        if (studentId) {
+          // Notify student
+          await prisma.notification.create({
+            data: {
+              user_id: studentId,
+              type: 'payment',
+              title: `Payment Success: ${invoice.invoice_number}`,
+              body: `Your payment of ${invoice.total} for invoice ${invoice.invoice_number} has been received.`,
+            }
+          });
+
+          // Notify parents
+          const parentLinks = await prisma.parentStudent.findMany({
+            where: { student_id: studentId },
+            select: { parent_id: true },
+          });
+
+          for (const link of parentLinks) {
+            await prisma.notification.create({
+              data: {
+                user_id: link.parent_id,
+                type: 'payment',
+                title: `Payment Success: ${invoice.invoice_number}`,
+                body: `Payment for your child's invoice ${invoice.invoice_number} (${invoice.total}) has been received.`,
+              }
+            });
           }
         }
-      } catch (err) { console.error('[Invoice Notif Error]', err); }
+      } catch (err) {
+        console.error('[Invoice Notif Error]', err);
+      }
     }
   }
 
   static async deleteInvoice(id: string, academyId: string) {
-    const r = await query(
-      "DELETE FROM student_invoices WHERE id=$1 AND academy_id=$2 AND status IN ('draft', 'cancelled') RETURNING id",
-      [id, academyId]
-    );
-    if (!r.rows.length) throw new Error('Can only delete draft or cancelled invoices');
+    const invoice = await prisma.studentInvoice.findUnique({
+      where: { id, academy_id: academyId },
+      select: { status: true },
+    });
+
+    if (!invoice || !['draft', 'cancelled'].includes(invoice.status || '')) {
+      throw new Error('Can only delete draft or cancelled invoices');
+    }
+
+    await prisma.studentInvoice.delete({
+      where: { id },
+    });
   }
 
   static async getSummary(academyId: string) {
-    const result = await query(
-      `SELECT
-         COUNT(*) as total,
-         COUNT(*) FILTER (WHERE status='paid') as paid,
-         COUNT(*) FILTER (WHERE status='pending' OR status='sent') as pending,
-         COUNT(*) FILTER (WHERE status='overdue') as overdue,
-         COALESCE(SUM(total) FILTER (WHERE status='paid'), 0) as total_collected,
-         COALESCE(SUM(total) FILTER (WHERE status IN ('pending','sent','overdue')), 0) as total_outstanding
-       FROM student_invoices WHERE academy_id=$1`,
-      [academyId]
-    );
-    return result.rows[0];
+    const invoices = await prisma.studentInvoice.findMany({
+      where: { academy_id: academyId },
+      select: { status: true, total: true },
+    });
+
+    return {
+      total: invoices.length,
+      paid: invoices.filter(i => i.status === 'paid').length,
+      pending: invoices.filter(i => i.status === 'pending' || i.status === 'sent').length,
+      overdue: invoices.filter(i => i.status === 'overdue').length,
+      total_collected: invoices.filter(i => i.status === 'paid').reduce((sum, i) => sum + Number(i.total), 0),
+      total_outstanding: invoices.filter(i => ['pending', 'sent', 'overdue'].includes(i.status || '')).reduce((sum, i) => sum + Number(i.total), 0),
+    };
   }
 }
 

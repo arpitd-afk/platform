@@ -100,7 +100,6 @@ export default function FeaturesPage() {
        <section className="bg-white border-y border-surface-200 py-20 lg:py-24 px-6">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-24">
-            <h2 className="font-display text-4xl lg:text-5xl font-extrabold mb-6 tracking-tight text-surface-900">Wait, there's even more</h2>
             <p className="text-surface-500 text-xl font-medium max-w-2xl mx-auto">Every detail is meticulously crafted to empower your coaching workflow.</p>
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-10">

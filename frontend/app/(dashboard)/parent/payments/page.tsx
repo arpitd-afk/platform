@@ -112,7 +112,7 @@ export default function ParentPaymentsPage() {
             No invoices yet
           </p>
           <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-            Your children's fee invoices will appear here
+            Your children&apos;s fee invoices will appear here
           </p>
         </div>
       ) : (

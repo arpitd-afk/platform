@@ -25,12 +25,12 @@ export default function OnboardingPage() {
     <main className="max-w-lg mx-auto px-6 py-24 text-center">
       <div className="card p-12 space-y-6">
         <CheckCircle2 size={56} className="text-[var(--amber)] mx-auto" />
-        <h1 className="font-display text-3xl font-bold">You're on the list!</h1>
-        <p className="text-[var(--text-mid)]">We've received your request for <strong className="text-[var(--text)]">{data.academyName}</strong>. Our team will contact {data.email} within 24 hours to get you set up.</p>
+        <h1 className="font-display text-3xl font-bold">You&apos;re on the list!</h1>
+        <p className="text-[var(--text-mid)]">We&apos;ve received your request for <strong className="text-[var(--text)]">{data.academyName}</strong>. Our team will contact {data.email} within 24 hours to get you set up.</p>
         <div className="bg-[var(--amber)]/5 border border-[var(--amber)]/20 rounded-xl p-4 text-sm text-[var(--text-mid)]">
           <strong className="text-[var(--amber)]">What happens next?</strong>
           <ul className="mt-2 space-y-1 text-left">
-            <li>• We'll email you a setup link</li>
+            <li>• We&apos;ll email you a setup link</li>
             <li>• Onboarding call (30 min) with our team</li>
             <li>• Your academy is live within 24 hours</li>
           </ul>

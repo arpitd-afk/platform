@@ -101,7 +101,7 @@ export default function PricingPage() {
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-24">
             <h2 className="font-display text-3xl lg:text-4xl font-extrabold mb-6 tracking-tight text-surface-900">Detailed Comparison</h2>
-            <p className="text-surface-500 text-lg font-medium">Pick the plan that fits your academy's scale.</p>
+            <p className="text-surface-500 text-lg font-medium">Pick the plan that fits your academy&apos;s scale.</p>
           </div>
           
           <div className="overflow-x-auto rounded-[3rem] border border-surface-200 shadow-premium">

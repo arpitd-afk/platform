@@ -253,7 +253,7 @@ export default function Home() {
             Professional tools, professional results
           </h2>
           <p className="text-surface-500 max-w-xl mx-auto text-lg font-medium">
-            We've digitized every aspect of the physical chess academy experience, 
+            We&apos;ve digitized every aspect of the physical chess academy experience, 
             making it accessible from anywhere in the world.
           </p>
         </div>
@@ -315,7 +315,7 @@ export default function Home() {
                 viewport={{ once: true }}
                 className="bg-surface-800 p-10 rounded-[2.5rem] border border-white/5 hover:border-gold/30 transition-all flex flex-col"
               >
-                <p className="text-white text-lg font-medium leading-relaxed italic mb-8">"{t.quote}"</p>
+                <p className="text-white text-lg font-medium leading-relaxed italic mb-8">&quot;{t.quote}&quot;</p>
                 <div className="mt-auto flex items-center gap-4">
                   <Image src={t.avatar} alt={t.author} width={56} height={56} className="rounded-2xl bg-surface-700 p-1" />
                   <div>
@@ -413,7 +413,7 @@ export default function Home() {
              Ready to revolutionize your academy?
            </h2>
            <p className="text-surface-400 text-xl lg:text-2xl mb-14 max-w-2xl mx-auto font-medium">
-             Join the world's most advanced chess teaching community and start growing today.
+             Join the world&apos;s most advanced chess teaching community and start growing today.
            </p>
            <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
               <Link href="/onboarding" className="btn-primary px-12 py-5 text-xl font-black shadow-2xl shadow-gold/30 w-full sm:w-auto">Start Free Trial</Link>

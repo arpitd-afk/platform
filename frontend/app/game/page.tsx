@@ -57,6 +57,43 @@ function GameContent() {
     : !gameId; // In Practice Mode (no gameId), it's always "my turn" to move either side
   const orientation: 'white' | 'black' = gameState?.blackId === user?.id ? 'black' : 'white'
 
+  const chessRef = useRef(chess)
+  useEffect(() => { chessRef.current = chess }, [chess])
+  const gameOverRef = useRef(gameOver)
+  useEffect(() => { gameOverRef.current = gameOver }, [gameOver])
+
+  const clearTimer = useCallback(() => { if (timerRef.current) clearInterval(timerRef.current) }, [])
+
+  const applyState = useCallback((state: any) => {
+    const g = new Chess(state.fen || 'start')
+    setChess(g)
+    setGameState(state)
+    setWhiteTimeMs(state.whiteTimeMs || 600_000)
+    setBlackTimeMs(state.blackTimeMs || 600_000)
+    if (state.result) setGameOver(state.result)
+  }, [])
+
+  const applyStateFromDB = useCallback((g: any) => {
+    const chess = new Chess()
+    try { if (g.pgn) chess.loadPgn(g.pgn) } catch {}
+    setChess(chess)
+    setWhiteTimeMs(g.white_time_ms || 600_000)
+    setBlackTimeMs(g.black_time_ms || 600_000)
+    setGameState({
+      id: g.id, fen: chess.fen(), pgn: g.pgn || '',
+      whiteId: g.white_player_id, blackId: g.black_player_id,
+      whiteName: g.white_name || 'White', blackName: g.black_name || 'Black',
+      whiteRating: g.white_rating || 1200, blackRating: g.black_rating || 1200,
+      whiteTimeMs: g.white_time_ms || 600_000, blackTimeMs: g.black_time_ms || 600_000,
+      status: g.status, moves: [],
+      result: g.result ? (typeof g.result === 'string' ? JSON.parse(g.result) : g.result) : undefined,
+    })
+    if (g.result || g.status === 'completed') {
+      const r = typeof g.result === 'string' ? JSON.parse(g.result) : g.result
+      setGameOver(r)
+    }
+  }, [])
+
   // Check for active/waiting game to reconnect
   useEffect(() => {
     if (gameId || !user) return
@@ -124,7 +161,7 @@ function GameContent() {
       socket.off('game:draw_offer')
       socket.off('game:opponent_disconnected')
     }
-  }, [token, gameId])
+  }, [token, gameId, applyState, clearTimer, router])
 
   // Fetch game from API if no socket state yet
   useEffect(() => {
@@ -133,43 +170,37 @@ function GameContent() {
       const g = res.data.game
       if (g) applyStateFromDB(g)
     }).catch(() => {})
-  }, [gameId])
+  }, [gameId, applyStateFromDB])
 
-  function applyState(state: any) {
-    const g = new Chess(state.fen || 'start')
-    setChess(g)
-    setGameState(state)
-    setWhiteTimeMs(state.whiteTimeMs || 600_000)
-    setBlackTimeMs(state.blackTimeMs || 600_000)
-    if (state.result) setGameOver(state.result)
-  }
-
-  function applyStateFromDB(g: any) {
-    const chess = new Chess()
-    try { if (g.pgn) chess.loadPgn(g.pgn) } catch {}
-    setChess(chess)
-    setWhiteTimeMs(g.white_time_ms || 600_000)
-    setBlackTimeMs(g.black_time_ms || 600_000)
-    setCurrentMoveIdx(chess.history().length)
-    setGameState({
-      id: g.id, fen: chess.fen(), pgn: g.pgn || '',
-      whiteId: g.white_player_id, blackId: g.black_player_id,
-      whiteName: g.white_name || 'White', blackName: g.black_name || 'Black',
-      whiteRating: g.white_rating || 1200, blackRating: g.black_rating || 1200,
-      whiteTimeMs: g.white_time_ms || 600_000, blackTimeMs: g.black_time_ms || 600_000,
-      status: g.status, moves: [],
-      result: g.result ? (typeof g.result === 'string' ? JSON.parse(g.result) : g.result) : undefined,
-    })
-    if (g.result || g.status === 'completed') {
-      const r = typeof g.result === 'string' ? JSON.parse(g.result) : g.result
-      setGameOver(r)
-    }
-  }
 
   // Timer
-  const clearTimer = () => { if (timerRef.current) clearInterval(timerRef.current) }
   const turnRef = useRef(chess.turn())
   turnRef.current = chess.turn()
+
+  const savePracticeGame = useCallback(async (result: { winner: string | null; reason: string }, finalFen?: string, finalPgn?: string) => {
+    if (gameId) return;
+    try {
+      await gamesAPI.savePractice({
+        fen: finalFen || chessRef.current.fen(),
+        pgn: finalPgn || chessRef.current.pgn(),
+        result,
+      })
+    } catch {}
+  }, [gameId])
+
+  const handleTimeout = useCallback((color: string) => {
+    clearTimer()
+    if (token && gameId) {
+      getSocket(token).emit('game:timeout', { gameId, color })
+    } else if (!gameId) {
+      const res = {
+        winner: color === 'white' ? 'black' : 'white',
+        reason: 'timeout'
+      };
+      setGameOver(res);
+      savePracticeGame(res, chessRef.current.fen(), chessRef.current.pgn());
+    }
+  }, [token, gameId, clearTimer, savePracticeGame])
 
   useEffect(() => {
     if (gameOver || (gameId && gameState?.status !== 'active')) return;
@@ -190,38 +221,8 @@ function GameContent() {
       }
     }, 1000)
     return clearTimer
-  }, [gameOver, gameState?.status, gameId]) // Removed chess from deps to prevent reset on every move
+  }, [gameOver, gameState?.status, gameId, handleTimeout, clearTimer]) // Stable deps
 
-  async function savePracticeGame(result: { winner: string | null; reason: string }, finalFen?: string, finalPgn?: string) {
-    if (gameId) return; // Only save if actually in practice mode
-    try {
-      await gamesAPI.savePractice({
-        fen: finalFen || chess.fen(),
-        pgn: finalPgn || chess.pgn(),
-        timeControl: '10+0',
-        result,
-        whiteName: user?.name || 'Player 1',
-        blackName: 'Opponent'
-      });
-      toast.success('Game saved to history');
-    } catch (err) {
-      console.error('Failed to save practice game:', err);
-    }
-  }
-
-  function handleTimeout(color: string) {
-    clearTimer()
-    if (token && gameId) {
-      getSocket(token).emit('game:timeout', { gameId, color })
-    } else if (!gameId) {
-      const res = {
-        winner: color === 'white' ? 'black' : 'white',
-        reason: 'timeout'
-      };
-      setGameOver(res);
-      savePracticeGame(res, chess.fen(), chess.pgn());
-    }
-  }
 
   // Auto-scroll move list
   useEffect(() => {
@@ -256,7 +257,7 @@ function GameContent() {
       }
     }
     return true
-  }, [chess, isMyTurn, replayIdx, gameOver, token, gameId, whiteTimeMs, blackTimeMs])
+  }, [chess, isMyTurn, replayIdx, gameOver, token, gameId, whiteTimeMs, blackTimeMs, savePracticeGame])
 
   const handleResign = async () => {
     if (!gameId) {

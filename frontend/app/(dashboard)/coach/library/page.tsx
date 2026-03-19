@@ -654,7 +654,7 @@ export default function CoachLibraryPage() {
         <Modal title="Delete Lesson?" onClose={() => setConfirmDelete(null)}>
           <div className="space-y-4">
             <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-              "<strong>{confirmDelete.title}</strong>" will be permanently
+              &quot;<strong>{confirmDelete.title}</strong>&quot; will be permanently
               deleted. Student progress on this lesson will also be lost.
             </p>
             <div className="flex gap-3">

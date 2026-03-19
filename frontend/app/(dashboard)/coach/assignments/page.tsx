@@ -167,7 +167,7 @@ function SubmissionsPanel({
               No submissions yet
             </p>
             <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
-              Students haven't submitted this assignment
+              Students haven&apos;t submitted this assignment
             </p>
           </div>
         ) : (
@@ -252,7 +252,7 @@ function SubmissionsPanel({
                         className="text-xs font-semibold mb-1.5"
                         style={{ color: "var(--text-muted)" }}
                       >
-                        Student's Note
+                        Student&apos;s Note
                       </p>
                       <p
                         className="text-sm"
@@ -651,7 +651,7 @@ export default function CoachAssignmentsPage() {
         >
           <div className="space-y-4">
             <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-              "<strong>{confirmDelete.title}</strong>" and all its submissions
+              &quot;<strong>{confirmDelete.title}</strong>&quot; and all its submissions
               will be permanently deleted.
             </p>
             <div className="flex gap-3">

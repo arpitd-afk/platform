@@ -107,6 +107,7 @@ function ResetPasswordForm() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             autoFocus
+            autoComplete="new-password"
           />
           <button
             type="button"
@@ -144,10 +145,11 @@ function ResetPasswordForm() {
           placeholder="Same as above"
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}
+          autoComplete="new-password"
         />
         {confirm.length > 0 && password !== confirm && (
           <p className="text-xs mt-1" style={{ color: "#DC2626" }}>
-            Passwords don't match
+            Passwords don&apos;t match
           </p>
         )}
       </div>

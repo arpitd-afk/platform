@@ -948,7 +948,7 @@ export default function PuzzlesPage() {
               No puzzles yet
             </p>
             <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
-              Your coach hasn't added any puzzles yet
+              Your coach hasn&apos;t added any puzzles yet
             </p>
           </div>
         ) : (
@@ -974,7 +974,7 @@ export default function PuzzlesPage() {
               No MCQ questions yet
             </p>
             <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
-              Your coach hasn't added any quiz questions yet
+              Your coach hasn&apos;t added any quiz questions yet
             </p>
           </div>
         ) : (

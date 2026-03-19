@@ -82,7 +82,7 @@ export default function ParentDashboard() {
           </h1>
           <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
             {children.length > 0
-              ? `Monitoring ${children.length} child${children.length > 1 ? "ren" : ""}'s chess journey`
+              ? `Monitoring ${children.length} child${children.length > 1 ? "ren" : ""}&apos;s chess journey`
               : "Contact your academy to link your children to your account"}
           </p>
         </div>
@@ -237,7 +237,7 @@ export default function ParentDashboard() {
           />
           <h3 className="font-semibold mb-2">No children linked</h3>
           <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-            Ask your academy admin or coach to link your child's account to this
+            Ask your academy admin or coach to link your child&apos;s account to this
             parent profile.
           </p>
         </div>

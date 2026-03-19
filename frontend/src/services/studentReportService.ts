@@ -1,8 +1,10 @@
-import { query } from '../lib/db';
+import { Prisma } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 
 export class StudentReportService {
-  static async getReportData(studentId: string, academyId: string, periodDays: number = 90, currentUser: any) {
-    const sinceClause = `NOW() - INTERVAL '${periodDays} days'`;
+  static async getReportData(studentId: string, academyId: string, periodDays: number = 90, currentUser: { id: string, role: string }) {
+    const sinceDate = new Date();
+    sinceDate.setDate(sinceDate.getDate() - periodDays);
 
     // Access check: student can only see own, others (coach/admin) can see if in same academy
     if (currentUser.role === 'student' && currentUser.id !== studentId) {
@@ -10,75 +12,101 @@ export class StudentReportService {
     }
 
     // Student info
-    const stRes = await query('SELECT id,name,email,phone,rating,created_at,avatar FROM users WHERE id=$1', [studentId]);
-    if (!stRes.rows.length) throw new Error('Student not found');
-    const student = stRes.rows[0];
+    const student = await prisma.user.findUnique({
+      where: { id: studentId },
+      select: { id: true, name: true, email: true, phone: true, rating: true, created_at: true, avatar: true },
+    });
+    if (!student) throw new Error('Student not found');
 
     // Academy info
-    const acRes = await query('SELECT id,name,logo_url,settings FROM academies WHERE id=$1', [academyId]);
-    const academy = acRes.rows[0] || {};
+    const academy = await prisma.academy.findUnique({
+      where: { id: academyId },
+      select: { id: true, name: true, logo_url: true, settings: true },
+    });
 
     // Game stats
-    const gameRes = await query(
-      `SELECT COUNT(*) as total,
-         COUNT(*) FILTER (WHERE (result->>'winner'='white' AND white_player_id=$1) OR (result->>'winner'='black' AND black_player_id=$1)) as wins,
-         COUNT(*) FILTER (WHERE (result->>'winner'='white' AND black_player_id=$1) OR (result->>'winner'='black' AND white_player_id=$1)) as losses,
-         COUNT(*) FILTER (WHERE status='completed' AND result->>'winner' IS NULL) as draws
-       FROM games WHERE (white_player_id=$1 OR black_player_id=$1) AND created_at > ${sinceClause}`,
-      [studentId]
-    );
-    const gs = gameRes.rows[0];
-    const gamesPlayed = parseInt(gs.total) || 0;
-    const wins = parseInt(gs.wins) || 0;
-    const losses = parseInt(gs.losses) || 0;
-    const draws = parseInt(gs.draws) || 0;
+    // Note: complex filtering for wins/losses might be easier with separate counts or raw query if too many games
+    const games = await prisma.game.findMany({
+      where: {
+        OR: [{ white_player_id: studentId }, { black_player_id: studentId }],
+        created_at: { gt: sinceDate },
+      },
+      select: { result: true, white_player_id: true, black_player_id: true, status: true },
+    });
+
+    let wins = 0;
+    let losses = 0;
+    let draws = 0;
+
+    games.forEach((g) => {
+      const result = g.result as any;
+      if (g.status === 'completed') {
+        if (result?.winner === 'white') {
+          if (g.white_player_id === studentId) wins++;
+          else losses++;
+        } else if (result?.winner === 'black') {
+          if (g.black_player_id === studentId) wins++;
+          else losses++;
+        } else if (result?.winner === null) {
+          draws++;
+        }
+      }
+    });
+
+    const gamesPlayed = games.length;
 
     // Rating history
-    const ratingRes = await query(
-      `SELECT rating, recorded_at FROM rating_history WHERE user_id=$1 AND recorded_at > ${sinceClause} ORDER BY recorded_at ASC LIMIT 30`,
-      [studentId]
-    );
+    const ratingHistory = await prisma.ratingHistory.findMany({
+      where: { user_id: studentId, recorded_at: { gt: sinceDate } },
+      orderBy: { recorded_at: 'asc' },
+      take: 30,
+    });
 
     // Recent games
-    const recentRes = await query(
-      `SELECT g.id, g.result, g.status, g.white_player_id, g.black_player_id,
-         (g.white_rating_after - g.white_rating_before) as white_rating_change,
-         (g.black_rating_after - g.black_rating_before) as black_rating_change,
-         g.created_at, g.time_control,
-         wu.name as white_name, bu.name as black_name
-       FROM games g
-       LEFT JOIN users wu ON wu.id = g.white_player_id
-       LEFT JOIN users bu ON bu.id = g.black_player_id
-       WHERE (g.white_player_id=$1 OR g.black_player_id=$1) AND g.status='completed'
-       ORDER BY g.created_at DESC LIMIT 6`,
-      [studentId]
-    );
+    const recentGames = await prisma.game.findMany({
+      where: {
+        OR: [{ white_player_id: studentId }, { black_player_id: studentId }],
+        status: 'completed',
+      },
+      include: {
+        white_player: { select: { name: true } },
+        black_player: { select: { name: true } },
+      },
+      orderBy: { created_at: 'desc' },
+      take: 6,
+    });
+
+    const mappedRecentGames = recentGames.map((g) => ({
+      ...g,
+      white_name: (g.white_player as any)?.name,
+      black_name: (g.black_player as any)?.name,
+      white_rating_change: (g.white_rating_after || 0) - (g.white_rating_before || 0),
+      black_rating_change: (g.black_rating_after || 0) - (g.black_rating_before || 0),
+    }));
 
     // Puzzle stats
-    const puzzleRes = await query(
-      `SELECT COUNT(*) as attempted,
-         COUNT(*) FILTER (WHERE is_correct=true) as solved,
-         AVG(time_taken_ms) FILTER (WHERE is_correct=true) as avg_time
-       FROM puzzle_attempts WHERE user_id=$1 AND attempted_at > ${sinceClause}`,
-      [studentId]
-    );
-    const ps = puzzleRes.rows[0];
-    const pAttempted = parseInt(ps.attempted) || 0;
-    const pSolved = parseInt(ps.solved) || 0;
+    const puzzleAttempts = await prisma.puzzleAttempt.findMany({
+      where: { user_id: studentId, attempted_at: { gt: sinceDate } },
+      select: { is_correct: true, time_taken_ms: true },
+    });
+
+    const pAttempted = puzzleAttempts.length;
+    const pSolved = puzzleAttempts.filter(p => p.is_correct).length;
+    const puzzleTimes = puzzleAttempts.filter(p => p.is_correct && p.time_taken_ms).map(p => Number(p.time_taken_ms));
+    const avgTime = puzzleTimes.length > 0 ? puzzleTimes.reduce((a, b) => a + b, 0) / puzzleTimes.length : null;
 
     // Attendance
-    const attRes = await query(
-      `SELECT COUNT(*) as total,
-         COUNT(*) FILTER (WHERE ca.joined_at IS NOT NULL) as present,
-         COUNT(*) FILTER (WHERE ca.joined_at IS NULL) as absent
-       FROM classroom_attendance ca
-       JOIN classrooms c ON c.id = ca.classroom_id
-       WHERE ca.student_id=$1 AND c.created_at > ${sinceClause}`,
-      [studentId]
-    );
-    const att = attRes.rows[0];
-    const attTotal = parseInt(att.total) || 0;
-    const attPresent = parseInt(att.present) || 0;
+    const attendance = await prisma.classroomAttendance.findMany({
+      where: {
+        student_id: studentId,
+        classroom: { created_at: { gt: sinceDate } },
+      },
+      select: { joined_at: true },
+    });
+
+    const attTotal = attendance.length;
+    const attPresent = attendance.filter(a => a.joined_at !== null).length;
+    const attAbsent = attTotal - attPresent;
 
     return {
       student,
@@ -91,18 +119,18 @@ export class StudentReportService {
         draws,
         winRate: gamesPlayed > 0 ? Math.round((wins / gamesPlayed) * 100) : 0,
       },
-      ratingHistory: ratingRes.rows,
-      recentGames: recentRes.rows,
+      ratingHistory,
+      recentGames: mappedRecentGames,
       puzzleStats: {
         attempted: pAttempted,
         solved: pSolved,
         accuracy: pAttempted > 0 ? Math.round((pSolved / pAttempted) * 100) : 0,
-        avgTime: ps.avg_time ? Math.round(ps.avg_time) : null,
+        avgTime: avgTime ? Math.round(avgTime) : null,
       },
       attendanceSummary: {
         total: attTotal,
         present: attPresent,
-        absent: parseInt(att.absent) || 0,
+        absent: attAbsent,
         rate: attTotal > 0 ? Math.round((attPresent / attTotal) * 100) : 0,
       },
     };

@@ -1,90 +1,125 @@
-import { query } from '../lib/db';
-import { cache } from '../lib/redis';
+import { prisma } from "../lib/prisma";
+import { cache } from "../lib/redis";
+import { Prisma } from "@prisma/client";
 
 export class AnalyticsService {
-  static async getStudentAnalytics(studentId: string, period: string = '30d') {
+  static async getStudentAnalytics(studentId: string, period: string = "30d") {
     const cacheKey = `analytics:student:${studentId}:${period}`;
     const cached = await cache.get<any>(cacheKey);
     if (cached) return cached;
 
-    const intervalMap: Record<string, string> = { '7d': '7 days', '30d': '30 days', '90d': '90 days', '1y': '1 year' };
-    const interval = intervalMap[period] || '30 days';
+    const intervalMap: Record<string, number> = {
+      "7d": 7,
+      "30d": 30,
+      "90d": 90,
+      "1y": 365,
+    };
+    const days = intervalMap[period] || 30;
+    const since = new Date();
+    since.setDate(since.getDate() - days);
 
-    const [gamesStats, ratingHistory, openings, puzzleStats] = await Promise.all([
-      query(
-        `SELECT
-          COUNT(*) as total_games,
-          COUNT(*) FILTER (WHERE
-            (g.result->>'winner' = 'white' AND g.white_player_id = $1) OR
-            (g.result->>'winner' = 'black' AND g.black_player_id = $1)
-          ) as wins,
-          COUNT(*) FILTER (WHERE g.result->>'winner' IS NULL AND g.status = 'completed') as draws,
-          AVG(EXTRACT(EPOCH FROM (g.updated_at - g.created_at))/60)::INT as avg_game_minutes
-         FROM games g
-         WHERE (g.white_player_id = $1 OR g.black_player_id = $1)
-           AND g.status = 'completed'
-           AND g.created_at > NOW() - INTERVAL '${interval}'`,
-        [studentId]
-      ),
-      query(
-        `SELECT rating, recorded_at::date as date
-         FROM rating_history
-         WHERE user_id = $1
-           AND recorded_at > NOW() - INTERVAL '${interval}'
-         ORDER BY recorded_at ASC`,
-        [studentId]
-      ),
-      query(
-        `SELECT opening_name, COUNT(*) as games,
-           COUNT(*) FILTER (WHERE
-             (result->>'winner' = 'white' AND white_player_id = $1) OR
-             (result->>'winner' = 'black' AND black_player_id = $1)
-           ) as wins
-         FROM games
-         WHERE (white_player_id = $1 OR black_player_id = $1)
-           AND opening_name IS NOT NULL
-           AND status = 'completed'
-           AND created_at > NOW() - INTERVAL '${interval}'
-         GROUP BY opening_name
-         ORDER BY games DESC
-         LIMIT 10`,
-        [studentId]
-      ),
-      query(
-        `SELECT
-           COUNT(*) as total_puzzles,
-           COUNT(*) FILTER (WHERE is_correct) as correct_puzzles,
-           AVG(time_taken_ms) as avg_time_ms
-         FROM puzzle_attempts
-         WHERE user_id = $1
-           AND attempted_at > NOW() - INTERVAL '${interval}'`,
-        [studentId]
-      ),
+    const [
+      gamesCount,
+      winsCount,
+      drawsCount,
+      avgDuration,
+      ratingHistory,
+      openings,
+      puzzleStats,
+    ] = await Promise.all([
+      prisma.game.count({
+        where: {
+          OR: [{ white_player_id: studentId }, { black_player_id: studentId }],
+          status: "completed",
+          created_at: { gte: since },
+        },
+      }),
+      prisma.game.count({
+        where: {
+          status: "completed",
+          created_at: { gte: since },
+          OR: [
+            {
+              white_player_id: studentId,
+              result: { path: ["winner"], equals: "white" },
+            },
+            {
+              black_player_id: studentId,
+              result: { path: ["winner"], equals: "black" },
+            },
+          ],
+        },
+      }),
+      prisma.game.count({
+        where: {
+          status: "completed",
+          created_at: { gte: since },
+          OR: [{ white_player_id: studentId }, { black_player_id: studentId }],
+          result: { path: ["winner"], equals: Prisma.AnyNull },
+        },
+      }),
+      // Prisma doesn't support avg on calculated interval easily, we'll use a rough estimate or skip for now
+      // Or we can use raw query for just this part
+      prisma.$queryRaw`SELECT AVG(EXTRACT(EPOCH FROM (updated_at - created_at))/60)::INT as avg_min 
+                        FROM games WHERE (white_player_id = ${studentId}::uuid OR black_player_id = ${studentId}::uuid) 
+                        AND status = 'completed' AND created_at > ${since}` as Promise<
+        any[]
+      >,
+      prisma.ratingHistory.findMany({
+        where: { user_id: studentId, recorded_at: { gte: since } },
+        orderBy: { recorded_at: "asc" },
+        select: { rating: true, recorded_at: true },
+      }),
+      prisma.$queryRaw`SELECT opening_name, COUNT(*)::INT as games,
+                       COUNT(*) FILTER (WHERE (result->>'winner' = 'white' AND white_player_id = ${studentId}::uuid) OR 
+                                              (result->>'winner' = 'black' AND black_player_id = ${studentId}::uuid))::INT as wins
+                       FROM games
+                       WHERE (white_player_id = ${studentId}::uuid OR black_player_id = ${studentId}::uuid)
+                       AND opening_name IS NOT NULL AND status = 'completed' AND created_at > ${since}
+                       GROUP BY opening_name ORDER BY games DESC LIMIT 10` as Promise<
+        any[]
+      >,
+      prisma.puzzleAttempt.aggregate({
+        where: { user_id: studentId, attempted_at: { gte: since } },
+        _count: { _all: true },
+        _avg: { time_taken_ms: true },
+        // is_correct filtering needs separate count or grouping
+      }),
     ]);
 
-    const gs = gamesStats.rows[0];
-    const ps = puzzleStats.rows[0];
-    const totalGames = parseInt(gs.total_games) || 0;
-    const wins = parseInt(gs.wins) || 0;
-    const draws = parseInt(gs.draws) || 0;
+    const correctPuzzles = await prisma.puzzleAttempt.count({
+      where: {
+        user_id: studentId,
+        attempted_at: { gte: since },
+        is_correct: true,
+      },
+    });
 
     const analytics = {
       games: {
-        total: totalGames,
-        wins,
-        draws,
-        losses: totalGames - wins - draws,
-        winRate: totalGames > 0 ? Math.round((wins / totalGames) * 100) : 0,
-        avgDurationMinutes: gs.avg_game_minutes || 0,
+        total: gamesCount,
+        wins: winsCount,
+        draws: drawsCount,
+        losses: gamesCount - winsCount - drawsCount,
+        winRate:
+          gamesCount > 0 ? Math.round((winsCount / gamesCount) * 100) : 0,
+        avgDurationMinutes: (avgDuration as any)[0]?.avg_min || 0,
       },
-      ratingHistory: ratingHistory.rows,
-      topOpenings: openings.rows,
+      ratingHistory: ratingHistory.map((r) => ({
+        rating: r.rating,
+        date: r.recorded_at!,
+      })),
+      topOpenings: openings,
       puzzles: {
-        total: parseInt(ps.total_puzzles) || 0,
-        correct: parseInt(ps.correct_puzzles) || 0,
-        accuracy: ps.total_puzzles > 0
-          ? Math.round((ps.correct_puzzles / ps.total_puzzles) * 100) : 0,
-        avgTimeSec: ps.avg_time_ms ? Math.round(ps.avg_time_ms / 1000) : 0,
+        total: puzzleStats._count._all,
+        correct: correctPuzzles,
+        accuracy:
+          puzzleStats._count._all > 0
+            ? Math.round((correctPuzzles / puzzleStats._count._all) * 100)
+            : 0,
+        avgTimeSec: puzzleStats._avg.time_taken_ms
+          ? Math.round(puzzleStats._avg.time_taken_ms / 1000)
+          : 0,
       },
     };
 
@@ -93,85 +128,147 @@ export class AnalyticsService {
   }
 
   static async getGlobalAnalytics() {
-    const cached = await cache.get<any>('analytics:global');
+    const cached = await cache.get<any>("analytics:global");
     if (cached) return cached;
 
-    const [academies, users, games, revenue] = await Promise.all([
-      query('SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE is_active) as active FROM academies'),
-      query("SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE role = 'student') as students, COUNT(*) FILTER (WHERE role = 'coach') as coaches FROM users WHERE is_active"),
-      query("SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '24 hours') as today, COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '7 days') as this_week FROM games"),
-      query("SELECT COALESCE(SUM(amount), 0) as total, COALESCE(SUM(amount) FILTER (WHERE created_at > NOW() - INTERVAL '30 days'), 0) as this_month FROM invoices WHERE status = 'paid'"),
-    ]);
+    const now = new Date();
+    const last24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const last7d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const last30d = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    const [academyStats, userStats, gameStats, revenueStats] =
+      await Promise.all([
+        prisma.academy.aggregate({
+          _count: { _all: true },
+          // is_active filter needs separate count or grouping in Prisma aggregate
+        }),
+        prisma.user.groupBy({
+          by: ["role"],
+          where: { is_active: true },
+          _count: { _all: true },
+        }),
+        prisma.game.aggregate({
+          _count: { _all: true },
+        }),
+        prisma.invoice.aggregate({
+          where: { status: "paid" },
+          _sum: { amount: true },
+        }),
+      ]);
+
+    const activeAcademies = await prisma.academy.count({
+      where: { is_active: true },
+    });
+    const gamesToday = await prisma.game.count({
+      where: { created_at: { gte: last24h } },
+    });
+    const gamesThisWeek = await prisma.game.count({
+      where: { created_at: { gte: last7d } },
+    });
+    const revenueThisMonth = await prisma.invoice.aggregate({
+      where: { status: "paid", created_at: { gte: last30d } },
+      _sum: { amount: true },
+    });
+
+    const userCountMap: any = { student: 0, coach: 0, total: 0 };
+    userStats.forEach((s: { role: string; _count: { _all: number } }) => {
+      userCountMap.total += s._count._all;
+      if (s.role === "student") userCountMap.student = s._count._all;
+      if (s.role === "coach") userCountMap.coach = s._count._all;
+    });
 
     const data = {
-      academies: { total: parseInt(academies.rows[0].total), active: parseInt(academies.rows[0].active) },
-      users: { total: parseInt(users.rows[0].total), students: parseInt(users.rows[0].students), coaches: parseInt(users.rows[0].coaches) },
-      games: { total: parseInt(games.rows[0].total), today: parseInt(games.rows[0].today), thisWeek: parseInt(games.rows[0].this_week) },
-      revenue: { total: parseFloat(revenue.rows[0].total), thisMonth: parseFloat(revenue.rows[0].this_month) },
+      academies: { total: academyStats._count._all, active: activeAcademies },
+      users: {
+        total: userCountMap.total,
+        students: userCountMap.student,
+        coaches: userCountMap.coach,
+      },
+      games: {
+        total: gameStats._count._all,
+        today: gamesToday,
+        thisWeek: gamesThisWeek,
+      },
+      revenue: {
+        total: Number(revenueStats._sum.amount || 0),
+        thisMonth: Number(revenueThisMonth._sum.amount || 0),
+      },
     };
 
-    await cache.set('analytics:global', data, 300);
+    await cache.set("analytics:global", data, 300);
     return data;
   }
 
   static async getAcademyAnalytics(academyId: string) {
     const [studentPerf, classroomStats, topStudents] = await Promise.all([
-      query(
-        `SELECT
-           AVG(u.rating) as avg_rating,
-           MAX(u.rating) as max_rating,
-           MIN(u.rating) as min_rating
-         FROM users u
-         WHERE u.academy_id = $1 AND u.role = 'student' AND u.is_active`,
-        [academyId]
-      ),
-      query(
-        `SELECT
-           COUNT(*) as total,
-           COUNT(*) FILTER (WHERE status = 'completed') as completed,
-           AVG(EXTRACT(EPOCH FROM (ended_at - started_at))/60) FILTER (WHERE status = 'completed') as avg_duration_min
-         FROM classrooms WHERE academy_id = $1`,
-        [academyId]
-      ),
-      query(
-        `SELECT u.name, u.rating, u.avatar
-         FROM users u
-         WHERE u.academy_id = $1 AND u.role = 'student' AND u.is_active
-         ORDER BY u.rating DESC LIMIT 10`,
-        [academyId]
-      ),
+      prisma.user.aggregate({
+        where: { academy_id: academyId, role: "student", is_active: true },
+        _avg: { rating: true },
+        _max: { rating: true },
+        _min: { rating: true },
+      }),
+      prisma.classroom.aggregate({
+        where: { academy_id: academyId },
+        _count: { _all: true },
+        _avg: { duration_min: true },
+      }),
+      prisma.user.findMany({
+        where: { academy_id: academyId, role: "student", is_active: true },
+        orderBy: { rating: "desc" },
+        take: 10,
+        select: { name: true, rating: true, avatar: true },
+      }),
     ]);
 
+    const completedClasses = await prisma.classroom.count({
+      where: { academy_id: academyId, status: "completed" },
+    });
+
     return {
-      studentPerformance: studentPerf.rows[0],
-      classrooms: classroomStats.rows[0],
-      topStudents: topStudents.rows,
+      studentPerformance: {
+        avg_rating: studentPerf._avg.rating,
+        max_rating: studentPerf._max.rating,
+        min_rating: studentPerf._min.rating,
+      },
+      classrooms: {
+        total: classroomStats._count._all,
+        completed: completedClasses,
+        avg_duration_min: classroomStats._avg.duration_min,
+      },
+      topStudents,
     };
   }
 
-  static async getCoachPerformance(academyId: string, period: string = '30d') {
-    const intervalMap: Record<string, string> = { '7d': '7 days', '30d': '30 days', '90d': '90 days', '1y': '1 year' };
-    const interval = intervalMap[period] || '30 days';
+  static async getCoachPerformance(academyId: string, period: string = "30d") {
+    // This is a very complex query. Let's use raw SQL for it as it's highly optimized already for PG.
+    // We'll just wrap it in prisma.$queryRaw.
+    const intervalMap: Record<string, string> = {
+      "7d": "7 days",
+      "30d": "30 days",
+      "90d": "90 days",
+      "1y": "1 year",
+    };
+    const interval = intervalMap[period] || "30 days";
 
-    const coachStats = await query(
-      `SELECT
+    const coaches: any[] = await prisma.$queryRaw`
+      SELECT
         u.id,
         u.name,
         u.email,
         u.avatar,
         u.rating,
-        COUNT(DISTINCT c.id) FILTER (WHERE c.status = 'completed' AND c.created_at > NOW() - INTERVAL '${interval}')
+        COUNT(DISTINCT c.id) FILTER (WHERE c.status = 'completed' AND c.created_at > NOW() - ${interval}::interval)
           AS classes_completed,
         COUNT(DISTINCT c.id) FILTER (WHERE c.status = 'scheduled' AND c.scheduled_at > NOW())
           AS classes_upcoming,
         COALESCE(SUM(
           EXTRACT(EPOCH FROM (c.ended_at - c.started_at)) / 3600
         ) FILTER (WHERE c.status = 'completed' AND c.started_at IS NOT NULL AND c.ended_at IS NOT NULL
-          AND c.created_at > NOW() - INTERVAL '${interval}'), 0)::NUMERIC(6,1) AS hours_taught,
+          AND c.created_at > NOW() - ${interval}::interval), 0)::NUMERIC(6,1) AS hours_taught,
         COUNT(DISTINCT b.id) FILTER (WHERE c.status = 'completed') AS batches_count,
-        COUNT(DISTINCT a.id) FILTER (WHERE a.created_at > NOW() - INTERVAL '${interval}')
+        COUNT(DISTINCT a.id) FILTER (WHERE a.created_at > NOW() - ${interval}::interval)
           AS assignments_created,
-        COUNT(DISTINCT asub.id) FILTER (WHERE asub.graded_at IS NOT NULL AND asub.graded_at > NOW() - INTERVAL '${interval}')
+        COUNT(DISTINCT asub.id) FILTER (WHERE asub.graded_at IS NOT NULL AND asub.graded_at > NOW() - ${interval}::interval)
           AS submissions_graded,
         CASE WHEN COUNT(DISTINCT c.id) FILTER (WHERE c.status = 'completed') > 0
           THEN ROUND(
@@ -181,19 +278,18 @@ export class AnalyticsService {
           ELSE NULL
         END AS avg_attendance_pct
        FROM users u
-       LEFT JOIN classrooms c ON c.coach_id = u.id AND c.academy_id = $1
-       LEFT JOIN batches b ON b.coach_id = u.id AND b.academy_id = $1
+       LEFT JOIN classrooms c ON c.coach_id = u.id AND c.academy_id = ${academyId}::uuid
+       LEFT JOIN batches b ON b.coach_id = u.id AND b.academy_id = ${academyId}::uuid
        LEFT JOIN assignments a ON a.coach_id = u.id
        LEFT JOIN assignment_submissions asub ON asub.assignment_id = a.id
        LEFT JOIN classroom_attendance ca ON ca.classroom_id = c.id
-       WHERE u.academy_id = $1 AND u.role = 'coach' AND u.is_active = true
+       WHERE u.academy_id = ${academyId}::uuid AND u.role = 'coach' AND u.is_active = true
        GROUP BY u.id, u.name, u.email, u.avatar, u.rating
-       ORDER BY hours_taught DESC, classes_completed DESC`,
-      [academyId]
-    );
+       ORDER BY hours_taught DESC, classes_completed DESC
+    `;
 
-    const improvements = await query(
-      `SELECT
+    const improvements: any[] = await prisma.$queryRaw`
+      SELECT
         b.coach_id,
         ROUND(AVG(u.rating - COALESCE(rh.prev_rating, u.rating))) AS avg_student_improvement
        FROM batches b
@@ -202,19 +298,22 @@ export class AnalyticsService {
        LEFT JOIN LATERAL (
          SELECT rating AS prev_rating
          FROM rating_history
-         WHERE user_id = u.id AND recorded_at < NOW() - INTERVAL '${interval}'
+         WHERE user_id = u.id AND recorded_at < NOW() - ${interval}::interval
          ORDER BY recorded_at DESC
          LIMIT 1
        ) rh ON true
-       WHERE b.academy_id = $1
-       GROUP BY b.coach_id`,
-      [academyId]
-    );
+       WHERE b.academy_id = ${academyId}::uuid
+       GROUP BY b.coach_id
+    `;
 
     const impMap: Record<string, number> = {};
-    improvements.rows.forEach((r) => { impMap[r.coach_id] = parseInt(r.avg_student_improvement) || 0; });
+    improvements.forEach(
+      (r: { coach_id: string; avg_student_improvement: string }) => {
+        impMap[r.coach_id] = parseInt(r.avg_student_improvement) || 0;
+      },
+    );
 
-    const coaches = coachStats.rows.map((c) => ({
+    const formattedCoaches = coaches.map((c) => ({
       ...c,
       hours_taught: parseFloat(c.hours_taught) || 0,
       classes_completed: parseInt(c.classes_completed) || 0,
@@ -222,22 +321,32 @@ export class AnalyticsService {
       assignments_created: parseInt(c.assignments_created) || 0,
       submissions_graded: parseInt(c.submissions_graded) || 0,
       batches_count: parseInt(c.batches_count) || 0,
-      avg_attendance_pct: c.avg_attendance_pct ? parseInt(c.avg_attendance_pct) : null,
+      avg_attendance_pct: c.avg_attendance_pct
+        ? parseInt(c.avg_attendance_pct)
+        : null,
       avg_student_improvement: impMap[c.id] || 0,
     }));
 
     const summary = {
-      total_coaches: coaches.length,
-      total_hours: coaches.reduce((s, c) => s + c.hours_taught, 0),
-      total_classes: coaches.reduce((s, c) => s + c.classes_completed, 0),
-      avg_attendance: coaches.filter((c) => c.avg_attendance_pct !== null).length > 0
-        ? Math.round(coaches.filter((c) => c.avg_attendance_pct !== null)
-          .reduce((s, c) => s + c.avg_attendance_pct, 0) /
-          coaches.filter((c) => c.avg_attendance_pct !== null).length)
-        : null,
+      total_coaches: formattedCoaches.length,
+      total_hours: formattedCoaches.reduce((s, c) => s + c.hours_taught, 0),
+      total_classes: formattedCoaches.reduce(
+        (s, c) => s + c.classes_completed,
+        0,
+      ),
+      avg_attendance:
+        formattedCoaches.filter((c) => c.avg_attendance_pct !== null).length > 0
+          ? Math.round(
+              formattedCoaches
+                .filter((c) => c.avg_attendance_pct !== null)
+                .reduce((s, c) => s + c.avg_attendance_pct, 0) /
+                formattedCoaches.filter((c) => c.avg_attendance_pct !== null)
+                  .length,
+            )
+          : null,
     };
 
-    return { coaches, summary, period };
+    return { coaches: formattedCoaches, summary, period };
   }
 }
 

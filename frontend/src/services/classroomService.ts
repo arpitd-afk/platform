@@ -1,24 +1,26 @@
-import { v4 as uuidv4 } from 'uuid';
-import { query } from '../lib/db';
+import { prisma } from '../lib/prisma';
 import { Classroom } from '../types/models';
 
 export class ClassroomService {
   static async getById(id: string) {
-    const result = await query(
-      `SELECT c.*, u.name as coach_name, b.name as batch_name
-       FROM classrooms c
-       LEFT JOIN users u ON c.coach_id = u.id
-       LEFT JOIN batches b ON c.batch_id = b.id
-       WHERE c.id = $1`,
-      [id]
-    );
-    return result.rows[0] || null;
+    const classroom = await prisma.classroom.findUnique({
+      where: { id },
+      include: {
+        coach: { select: { name: true } },
+        batch: { select: { name: true } },
+      },
+    });
+
+    if (!classroom) return null;
+
+    return {
+      ...classroom,
+      coach_name: classroom.coach?.name,
+      batch_name: classroom.batch?.name,
+    };
   }
 
   static async update(id: string, data: any) {
-    const fields = [];
-    const vals = [];
-    
     const mappings: Record<string, string> = {
       title: 'title',
       description: 'description',
@@ -33,56 +35,75 @@ export class ClassroomService {
       status: 'status'
     };
 
+    const updateData: any = {};
     for (const [key, value] of Object.entries(data)) {
       const col = mappings[key];
       if (col && value !== undefined) {
         // Convert empty strings to null for UUID columns
-        const finalValue = (['coach_id', 'batch_id'].includes(col) && value === '') ? null : value;
-        vals.push(finalValue);
-        fields.push(`${col} = $${vals.length}`);
+        let finalValue: any = (['coach_id', 'batch_id'].includes(col) && value === '') ? null : value;
+        // Convert scheduled_at to a proper Date object for Prisma
+        if (col === 'scheduled_at' && finalValue) finalValue = new Date(finalValue as string);
+        updateData[col] = finalValue;
       }
     }
 
-    if (fields.length === 0) return;
+    if (Object.keys(updateData).length === 0) return;
 
-    vals.push(id);
-    await query(
-      `UPDATE classrooms SET ${fields.join(', ')} WHERE id = $${vals.length}`,
-      vals
-    );
+    await prisma.classroom.update({
+      where: { id },
+      data: updateData,
+    });
   }
 
   static async cancel(id: string) {
-    await query("UPDATE classrooms SET status = 'cancelled' WHERE id = $1", [id]);
+    await prisma.classroom.update({
+      where: { id },
+      data: { status: 'cancelled' },
+    });
   }
 
   static async start(id: string) {
-    await query("UPDATE classrooms SET status = 'live', started_at = NOW() WHERE id = $1", [id]);
+    await prisma.classroom.update({
+      where: { id },
+      data: { status: 'live', started_at: new Date() },
+    });
     if ((global as any).io) {
       (global as any).io.to(`classroom:${id}`).emit('classroom:started', { classroomId: id });
     }
   }
 
   static async end(id: string) {
-    await query("UPDATE classrooms SET status = 'completed', ended_at = NOW() WHERE id = $1", [id]);
+    await prisma.classroom.update({
+      where: { id },
+      data: { status: 'completed', ended_at: new Date() },
+    });
     if ((global as any).io) {
       (global as any).io.to(`classroom:${id}`).emit('classroom:ended', { classroomId: id });
     }
   }
 
   static async getAttendance(classroomId: string) {
-    const result = await query(
-      `SELECT ca.*, u.name as student_name, u.email, u.rating
-       FROM classroom_attendance ca
-       JOIN users u ON ca.student_id = u.id
-       WHERE ca.classroom_id = $1 ORDER BY ca.joined_at ASC`,
-      [classroomId]
-    );
-    return result.rows;
+    const attendance = await prisma.classroomAttendance.findMany({
+      where: { classroom_id: classroomId },
+      include: {
+        student: { select: { name: true, email: true, rating: true } },
+      },
+      orderBy: { joined_at: 'asc' },
+    });
+
+    return attendance.map(a => ({
+      ...a,
+      student_name: a.student.name,
+      email: a.student.email,
+      rating: a.student.rating,
+    }));
   }
 
   static async saveBoard(id: string, pgn: string, fen: string) {
-    await query('UPDATE classrooms SET pgn = $1, board_fen = $2 WHERE id = $3', [pgn, fen, id]);
+    await prisma.classroom.update({
+      where: { id },
+      data: { pgn, board_fen: fen },
+    });
     if ((global as any).io) {
       (global as any).io.to(`classroom:${id}`).emit('board:sync', { pgn, fen });
     }
@@ -90,51 +111,73 @@ export class ClassroomService {
 
   static async updateAttendance(classroomId: string, studentId: string, present: boolean) {
     if (present) {
-      await query(
-        `INSERT INTO classroom_attendance (classroom_id, student_id, joined_at, duration_min)
-         VALUES ($1, $2, NOW(), 0)
-         ON CONFLICT (classroom_id, student_id) DO UPDATE SET joined_at = NOW()`,
-        [classroomId, studentId]
-      );
+      await prisma.classroomAttendance.upsert({
+        where: { classroom_id_student_id: { classroom_id: classroomId, student_id: studentId } },
+        create: { classroom_id: classroomId, student_id: studentId, joined_at: new Date(), duration_min: 0 },
+        update: { joined_at: new Date() },
+      });
     } else {
-      await query(
-        'DELETE FROM classroom_attendance WHERE classroom_id = $1 AND student_id = $2',
-        [classroomId, studentId]
-      );
+      await prisma.classroomAttendance.delete({
+        where: { classroom_id_student_id: { classroom_id: classroomId, student_id: studentId } },
+      }).catch(() => {}); // Ignore if already deleted
     }
   }
 
   static async bulkAttendance(classroomId: string, present: string[], absent: string[]) {
-    for (const studentId of present) {
-      await query(
-        `INSERT INTO classroom_attendance (classroom_id, student_id, joined_at, duration_min)
-         VALUES ($1, $2, NOW(), 0) ON CONFLICT (classroom_id, student_id) DO NOTHING`,
-        [classroomId, studentId]
-      );
+    // Process presenters
+    if (present.length > 0) {
+      await prisma.classroomAttendance.createMany({
+        data: present.map(studentId => ({
+          classroom_id: classroomId,
+          student_id: studentId,
+          joined_at: new Date(),
+          duration_min: 0,
+        })),
+        skipDuplicates: true,
+      });
     }
     
-    // Process abentees and notify parents
-    const classResult = await query('SELECT title FROM classrooms WHERE id=$1', [classroomId]);
-    const className = classResult.rows[0]?.title || 'class';
+    // Process absentees and notify parents
+    const classroom = await prisma.classroom.findUnique({ where: { id: classroomId }, select: { title: true } });
+    const className = classroom?.title || 'class';
 
-    for (const studentId of absent) {
-      await query(
-        'DELETE FROM classroom_attendance WHERE classroom_id = $1 AND student_id = $2',
-        [classroomId, studentId]
-      );
+    if (absent.length > 0) {
+      await prisma.classroomAttendance.deleteMany({
+        where: {
+          classroom_id: classroomId,
+          student_id: { in: absent },
+        },
+      });
 
-      // Notification logic
-      const parents = await query('SELECT parent_id FROM parent_student WHERE student_id=$1', [studentId]);
-      const student = await query('SELECT name FROM users WHERE id=$1', [studentId]);
-      
-      for (const p of parents.rows) {
-        await query(
-          `INSERT INTO notifications (id, user_id, type, title, body, data)
-           VALUES (gen_random_uuid(), $1, 'attendance_absent', $2, $3, $4)`,
-          [p.parent_id, 'Attendance Alert', 
-           `${student.rows[0]?.name || 'Your child'} was marked absent from "${className}"`,
-           JSON.stringify({ studentId, classroomId })]
-        );
+      // Notification logic - Fetch parents for all absentees
+      const studentsWithParents = await prisma.user.findMany({
+        where: { id: { in: absent } },
+        select: {
+          id: true,
+          name: true,
+          student_of: {
+            select: { parent_id: true },
+          },
+        },
+      });
+
+      const notificationsData = [];
+      for (const student of studentsWithParents) {
+        for (const p of student.student_of) {
+          notificationsData.push({
+            user_id: p.parent_id,
+            type: 'attendance_absent',
+            title: 'Attendance Alert',
+            body: `${student.name || 'Your child'} was marked absent from "${className}"`,
+            data: { studentId: student.id, classroomId } as any,
+          });
+        }
+      }
+
+      if (notificationsData.length > 0) {
+        await prisma.notification.createMany({
+          data: notificationsData,
+        });
       }
     }
   }
@@ -142,65 +185,91 @@ export class ClassroomService {
   static async create(data: any) {
     const { title, description, coachId, academyId, batchId, scheduledAt, durationMinutes, durationMin } = data;
     const duration = durationMin || durationMinutes || 60;
-    const result = await query(
-      `INSERT INTO classrooms (id, title, description, coach_id, academy_id, batch_id, scheduled_at, duration_min, status, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'scheduled', NOW())
-       RETURNING id`,
-      [uuidv4(), title, description, coachId || null, academyId || null, batchId || null, scheduledAt, duration]
-    );
-    return result.rows[0];
+    
+    const classroom = await prisma.classroom.create({
+      data: {
+        title,
+        description,
+        coach_id: coachId || null,
+        academy_id: academyId || null,
+        batch_id: batchId || null,
+        scheduled_at: scheduledAt ? new Date(scheduledAt) : new Date(),
+        duration_min: duration,
+        status: 'scheduled',
+      },
+    });
+    return classroom;
   }
 
   static async listClassrooms(params: { coachId?: string; academyId?: string }) {
     const { coachId, academyId } = params;
-    const conditions = [];
-    const queryParams: any[] = [];
+    
+    const where: any = {};
+    if (coachId) where.coach_id = coachId;
+    if (academyId) where.academy_id = academyId;
 
-    if (coachId) {
-      queryParams.push(coachId);
-      conditions.push(`cl.coach_id = $${queryParams.length}`);
-    }
-    if (academyId) {
-      queryParams.push(academyId);
-      conditions.push(`b.academy_id = $${queryParams.length}`);
-    }
+    const classrooms = await prisma.classroom.findMany({
+      where,
+      include: {
+        batch: { select: { name: true } },
+        coach: { select: { name: true } },
+        _count: {
+          select: {
+            attendance: true,
+          },
+        },
+      },
+      orderBy: { scheduled_at: 'desc' },
+      take: 50,
+    });
 
-    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    // To get 'enrolled' count, we need the count of students in the batch
+    const batchIds = Array.from(new Set(classrooms.map(c => c.batch_id).filter(Boolean))) as string[];
+    const enrollmentCounts = await prisma.batchEnrollment.groupBy({
+      by: ['batch_id'],
+      where: { batch_id: { in: batchIds }, is_active: true },
+      _count: { student_id: true },
+    });
 
-    const result = await query(
-      `SELECT cl.id, cl.title, cl.description, cl.scheduled_at, cl.status, cl.batch_id, cl.coach_id, cl.duration_min,
-        b.name as batch_name, u.name as coach_name,
-        COUNT(DISTINCT be.student_id) as enrolled,
-        COUNT(DISTINCT ca.student_id) as attended
-       FROM classrooms cl
-       LEFT JOIN batches b ON b.id = cl.batch_id
-       LEFT JOIN users u ON u.id = cl.coach_id
-       LEFT JOIN batch_enrollments be ON be.batch_id = cl.batch_id AND be.is_active = true
-       LEFT JOIN classroom_attendance ca ON ca.classroom_id = cl.id
-       ${where}
-       GROUP BY cl.id, cl.title, cl.description, cl.scheduled_at, cl.status, cl.batch_id, cl.coach_id, cl.duration_min, b.name, u.name
-       ORDER BY cl.scheduled_at DESC LIMIT 50`,
-      queryParams
-    );
-    return result.rows;
+    const enrollmentMap = Object.fromEntries(enrollmentCounts.map(ec => [ec.batch_id, ec._count.student_id]));
+
+    return classrooms.map(cl => ({
+      ...cl,
+      batch_name: cl.batch?.name,
+      coach_name: cl.coach?.name,
+      enrolled: cl.batch_id ? enrollmentMap[cl.batch_id] || 0 : 0,
+      attended: cl._count.attendance,
+    }));
   }
 
   static async getCoachSummary(coachId: string) {
-    const result = await query(
-      `SELECT cl.id, cl.title, cl.scheduled_at, cl.status, cl.batch_id, cl.duration_min,
-        b.name as batch_name,
-        COUNT(DISTINCT be.student_id) as enrolled,
-        COUNT(DISTINCT ca.student_id) as attended
-       FROM classrooms cl
-       LEFT JOIN batches b ON b.id = cl.batch_id
-       LEFT JOIN batch_enrollments be ON be.batch_id = cl.batch_id AND be.is_active = true
-       LEFT JOIN classroom_attendance ca ON ca.classroom_id = cl.id
-       WHERE cl.coach_id = $1
-       GROUP BY cl.id, cl.title, cl.scheduled_at, cl.status, cl.batch_id, cl.duration_min, b.name
-       ORDER BY cl.scheduled_at DESC LIMIT 50`,
-      [coachId]
-    );
-    return { classes: result.rows };
+    const classrooms = await prisma.classroom.findMany({
+      where: { coach_id: coachId },
+      include: {
+        batch: { select: { name: true } },
+        _count: { select: { attendance: true } },
+      },
+      orderBy: { scheduled_at: 'desc' },
+      take: 50,
+    });
+
+    const batchIds = Array.from(new Set(classrooms.map(c => c.batch_id).filter(Boolean))) as string[];
+    const enrollmentCounts = await prisma.batchEnrollment.groupBy({
+      by: ['batch_id'],
+      where: { batch_id: { in: batchIds }, is_active: true },
+      _count: { student_id: true },
+    });
+
+    const enrollmentMap = Object.fromEntries(enrollmentCounts.map(ec => [ec.batch_id, ec._count.student_id]));
+
+    return {
+      classes: classrooms.map(cl => ({
+        ...cl,
+        batch_name: cl.batch?.name,
+        enrolled: cl.batch_id ? enrollmentMap[cl.batch_id] || 0 : 0,
+        attended: cl._count.attendance,
+      }))
+    };
   }
 }
 

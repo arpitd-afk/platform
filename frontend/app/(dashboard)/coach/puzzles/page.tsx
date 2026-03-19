@@ -619,13 +619,13 @@ export default function CoachPuzzlesPage() {
         <Modal title="Confirm Delete" onClose={() => setConfirmDelete(null)}>
           <div className="space-y-4">
             <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-              Delete "
+              Delete &quot;
               <strong>
                 {confirmDelete.type === "puzzle"
                   ? confirmDelete.item.title
                   : confirmDelete.item.question.slice(0, 60)}
               </strong>
-              "? All student attempts will be lost.
+              &quot;? All student attempts will be lost.
             </p>
             <div className="flex gap-3">
               <button

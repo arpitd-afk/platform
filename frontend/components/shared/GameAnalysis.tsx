@@ -270,26 +270,40 @@ export default function GameAnalysis({
   const initEngine = useCallback((): Promise<Worker> => {
     return new Promise((resolve, reject) => {
       try {
-        const w = new Worker("/stockfish.js");
+        const w = new Worker("/stockfish.wasm.js");
         let ready = false;
-        w.postMessage("uci");
+
         w.onmessage = (e) => {
-          if (e.data === "uciok") {
-            w.postMessage("setoption name Threads value 1");
-            w.postMessage("setoption name Hash value 16");
+          const msg = typeof e.data === "string" ? e.data.trim() : e.data;
+
+          if (msg === "uciok") {
             w.postMessage("isready");
-          } else if (e.data === "readyok" && !ready) {
-            ready = true;
-            resolve(w);
+            if (!ready) {
+              ready = true;
+              resolve(w);
+            }
+          } else if (msg === "readyok") {
+            console.log("Stockfish engine is ready (readyok arrived).");
           }
         };
-        w.onerror = (e) => reject(new Error("Engine error: " + e.message));
+
+        w.onerror = (e) => {
+          reject(
+            new Error("Engine worker error: " + (e as ErrorEvent).message),
+          );
+        };
+
+        w.postMessage("uci");
+
         setTimeout(() => {
-          if (!ready)
+          if (!ready) {
             reject(
-              new Error("Engine timeout — is /public/stockfish.js present?"),
+              new Error(
+                "Engine timeout — Is Stockfish loading? Check Network tab for stockfish.wasm",
+              ),
             );
-        }, 6000);
+          }
+        }, 300000);
       } catch (e) {
         reject(e);
       }
@@ -306,7 +320,8 @@ export default function GameAnalysis({
         let score = 0,
           bestUci = "";
         worker.onmessage = (e) => {
-          const msg = e.data as string;
+          const msg = typeof e.data === "string" ? e.data.trim() : e.data;
+
           if (msg.startsWith("info") && msg.includes("score")) {
             if (msg.includes("score cp")) {
               const m = msg.match(/score cp (-?\d+)/);
@@ -419,7 +434,7 @@ export default function GameAnalysis({
     return () => {
       workerRef.current?.terminate();
     };
-  }, []);
+  }, [autoStart, pgn, runAnalysis]);
 
   // Keyboard navigation
   useEffect(() => {

@@ -236,12 +236,9 @@ export default function StudentAssignmentsPage() {
     overdue: assignments.filter(
       (a: any) => !a.submitted_at && a.due_date && new Date(a.due_date) < now,
     ).length,
-    submitted: assignments.filter(
-      (a: any) => a.submitted_at && !a.graded_at,
-    ).length,
-    graded: assignments.filter(
-      (a: any) => !!a.graded_at,
-    ).length,
+    submitted: assignments.filter((a: any) => a.submitted_at && !a.graded_at)
+      .length,
+    graded: assignments.filter((a: any) => !!a.graded_at).length,
   };
 
   const filtered =
@@ -254,10 +251,8 @@ export default function StudentAssignmentsPage() {
             );
           if (filter === "overdue")
             return !a.submitted_at && a.due_date && new Date(a.due_date) < now;
-          if (filter === "submitted")
-            return a.submitted_at && !a.graded_at;
-          if (filter === "graded")
-            return !!a.graded_at;
+          if (filter === "submitted") return a.submitted_at && !a.graded_at;
+          if (filter === "graded") return !!a.graded_at;
           return true;
         });
 
@@ -267,7 +262,8 @@ export default function StudentAssignmentsPage() {
     );
     if (!gradedWithScore.length) return null;
     return Math.round(
-      gradedWithScore.reduce((s: number, a: any) => s + a.grade, 0) / gradedWithScore.length,
+      gradedWithScore.reduce((s: number, a: any) => s + a.grade, 0) /
+        gradedWithScore.length,
     );
   })();
 

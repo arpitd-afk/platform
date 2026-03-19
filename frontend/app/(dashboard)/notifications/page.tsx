@@ -38,7 +38,7 @@ export default function NotificationsPage() {
         <div className="card p-16 text-center">
           <Bell size={40} className="mx-auto mb-3" style={{ color: 'var(--border-md)' }} />
           <p className="font-medium" style={{ color: 'var(--text)' }}>No notifications</p>
-          <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>You're all caught up!</p>
+          <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>You&apos;re all caught up!</p>
         </div>
       ) : (
         <div className="card overflow-hidden">

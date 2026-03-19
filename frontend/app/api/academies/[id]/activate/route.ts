@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerUser, authResponse } from '@/src/lib/auth';
 import { AcademyService } from '@/src/services/academyService';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(
   req: NextRequest,
   { params }: { params: { id: string } }

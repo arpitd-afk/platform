@@ -209,3 +209,16 @@ export interface MCQOption {
   is_correct: boolean;
   order_index: number;
 }
+export interface ActivityLog {
+  id: string;
+  actor_id?: string;
+  actor_name?: string;
+  actor_role?: string;
+  academy_id?: string;
+  action: string;
+  entity_type?: string;
+  entity_id?: string;
+  metadata: any;
+  ip_address?: string;
+  created_at: string;
+}

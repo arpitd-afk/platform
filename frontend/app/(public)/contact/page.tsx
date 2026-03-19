@@ -30,7 +30,7 @@ export default function ContactPage() {
             <h2 className="text-3xl font-extrabold tracking-tight text-surface-900">Reach Out Direct</h2>
             <p className="text-surface-500 font-bold text-lg leading-relaxed">
               Skip the queue. Connect with us through your preferred channel. 
-              We're active Monday through Saturday, 9 AM to 6 PM IST.
+              We&apos;re active Monday through Saturday, 9 AM to 6 PM IST.
             </p>
             
             <div className="grid sm:grid-cols-2 gap-6">
@@ -117,7 +117,7 @@ export default function ContactPage() {
               </div>
               <div className="space-y-3">
                 <label className="text-xs font-black text-surface-400 uppercase tracking-widest">Message</label>
-                <textarea className="input bg-surface-50 border-surface-100 font-bold min-h-[180px] pt-4 resize-none" placeholder="Tell us about your academy's goals..." value={form.message} onChange={e => setForm(f => ({ ...f, message: e.target.value }))} required />
+                <textarea className="input bg-surface-50 border-surface-100 font-bold min-h-[180px] pt-4 resize-none" placeholder="Tell us about your academy&apos;s goals..." value={form.message} onChange={e => setForm(f => ({ ...f, message: e.target.value }))} required />
               </div>
               <button type="submit" className="btn-primary w-full py-6 rounded-2xl flex items-center justify-center gap-3 font-black text-xl shadow-2xl shadow-gold/20 active:scale-[0.98]">
                 <Send size={24} /> Send Message

@@ -245,15 +245,16 @@ export default function MessagesUI() {
       socket.off("batch:message", onBatchMsg);
       socket.off("batch:message_deleted", onBatchDeleted);
     };
-  }, [user?.id]);
+  }, [user?.id, qc, activeBatchId]);
 
   // Scroll to bottom on new messages
+  const currentContactTyping = selectedContact?.id ? typingMap[selectedContact.id] : false;
   useEffect(() => {
     setTimeout(
       () => bottomRef.current?.scrollIntoView({ behavior: "smooth" }),
       50,
     );
-  }, [messages.length, typingMap[selectedContact?.id]]);
+  }, [messages.length, currentContactTyping]);
 
   useEffect(() => {
     const socket = getSocketInstance();
@@ -266,7 +267,7 @@ export default function MessagesUI() {
       inputRef.current?.focus();
       api.put(`/messages/${selectedContact.id}/read`).catch(() => {});
     }
-  }, [selectedContact?.id]);
+  }, [selectedContact]);
 
   // Mobile detection
   useEffect(() => {
@@ -540,7 +541,7 @@ export default function MessagesUI() {
                 <p className="text-sm" style={{ color: "var(--text-muted)" }}>
                   No conversations yet.
                   <br />
-                  Click "+ New" to start one.
+                  Click &quot;+ New&quot; to start one.
                 </p>
               </div>
             ) : (

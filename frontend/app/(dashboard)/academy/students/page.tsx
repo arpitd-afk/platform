@@ -61,7 +61,7 @@ function LinkParentModal({ student, onClose }: { student: any; onClose: () => vo
     <Modal title={`Link Parent – ${student.name}`} onClose={onClose}>
       <div className="space-y-4">
         <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-          Enter the parent's email. If they don't have an account yet, one will be created automatically with a temporary password.
+          Enter the parent&apos;s email. If they don&apos;t have an account yet, one will be created automatically with a temporary password.
         </p>
         <div>
           <label className="label">Parent Email *</label>
@@ -213,7 +213,7 @@ export default function AcademyStudentsPage() {
   })
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Deactivate student "${name}"? They won't be able to log in.`)) return
+    if (!confirm(`Deactivate student "${name}"? They won&apos;t be able to log in.`)) return
     setDeleting(id)
     try {
       await usersAPI.update(id, { is_active: false })
