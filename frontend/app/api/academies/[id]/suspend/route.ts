@@ -1,8 +1,11 @@
+export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerUser, authResponse } from '@/src/lib/auth';
 import { AcademyService } from '@/src/services/academyService';
 
-export const dynamic = 'force-dynamic';
+export async function GET() {
+  return new NextResponse('Method Not Allowed', { status: 405 });
+}
 
 export async function POST(
   req: NextRequest,
