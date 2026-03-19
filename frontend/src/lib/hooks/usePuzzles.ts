@@ -42,6 +42,13 @@ export const usePuzzleLeaderboard = (academyId?: string) =>
     staleTime: 30000,
   });
 
+export const usePuzzleStats = () =>
+  useQuery({
+    queryKey: ["puzzle-stats"],
+    queryFn: () => puzzlesAPI.myStats().then((r) => r.data),
+    staleTime: 60000,
+  });
+
 export const useMyPuzzleRank = () =>
   useQuery({
     queryKey: ["my-puzzle-rank"],

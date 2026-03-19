@@ -2,11 +2,12 @@
   "/api/notifications/unread-count/route": "app/api/notifications/unread-count/route.js",
   "/api/notifications/route": "app/api/notifications/route.js",
   "/(auth)/login/page": "app/(auth)/login/page.js",
-  "/api/games/route": "app/api/games/route.js",
-  "/game/[id]/page": "app/game/[id]/page.js",
-  "/api/games/[id]/route": "app/api/games/[id]/route.js",
-  "/(dashboard)/academy/classes/page": "app/(dashboard)/academy/classes/page.js",
-  "/(dashboard)/academy/batches/page": "app/(dashboard)/academy/batches/page.js",
-  "/(dashboard)/student/games/page": "app/(dashboard)/student/games/page.js",
-  "/(dashboard)/student/page": "app/(dashboard)/student/page.js"
+  "/api/puzzles/random/route": "app/api/puzzles/random/route.js",
+  "/api/puzzles/leaderboard/route": "app/api/puzzles/leaderboard/route.js",
+  "/api/puzzles/my-rank/route": "app/api/puzzles/my-rank/route.js",
+  "/api/puzzles/my-stats/route": "app/api/puzzles/my-stats/route.js",
+  "/(dashboard)/student/page": "app/(dashboard)/student/page.js",
+  "/(dashboard)/student/lessons/page": "app/(dashboard)/student/lessons/page.js",
+  "/(dashboard)/student/assignments/page": "app/(dashboard)/student/assignments/page.js",
+  "/(dashboard)/student/puzzles/page": "app/(dashboard)/student/puzzles/page.js"
 }

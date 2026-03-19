@@ -12,11 +12,17 @@ import {
   useSubmitMcq,
   usePuzzleLeaderboard,
   useMyPuzzleRank,
+  usePuzzleStats,
 } from "@/src/lib/hooks";
 import { PageLoading } from "@/components/shared/States";
 import Avatar from "@/components/shared/Avatar";
+import { 
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis 
+} from 'recharts';
 import {
   Puzzle,
+
   RefreshCw,
   CheckCircle2,
   XCircle,
@@ -777,10 +783,12 @@ function CustomPuzzleCard({ puzzle }: { puzzle: any }) {
 // ─── Main page ────────────────────────────────────────────────
 export default function PuzzlesPage() {
   const { user } = useAuth();
-  const [tab, setTab] = useState<"lichess" | "custom" | "mcq" | "leaderboard">(
-    "custom",
+  const [tab, setTab] = useState<"lichess" | "custom" | "mcq" | "leaderboard" | "progress">(
+    "progress",
   );
+  const { data: stats } = usePuzzleStats();
   const [difficulty, setDifficulty] = useState("intermediate");
+
   const [result, setResult] = useState<"correct" | "wrong" | null>(null);
   const [hint, setHint] = useState(false);
   const startTimeRef = useRef(Date.now());
@@ -839,12 +847,111 @@ export default function PuzzlesPage() {
     [lichessChess, lichessPuzzle, result, submitLichess],
   );
 
-  const TABS = [
+function PuzzleProgressTab() {
+  const { data: stats, isLoading } = usePuzzleStats();
+
+  if (isLoading) return <div className="flex justify-center p-8"><Loader2 className="animate-spin text-amber-500" /></div>;
+  if (!stats || stats.total === 0) return (
+    <div className="card p-10 text-center">
+      <TrendingUp size={36} className="mx-auto mb-3 text-gray-300" />
+      <p className="font-medium text-gray-600">No progress data yet</p>
+      <p className="text-sm text-gray-400 mt-1">Solve more puzzles to see your performance breakdown</p>
+    </div>
+  );
+
+  const themeData = Object.entries(stats.theme_stats || {})
+    .map(([name, s]: any) => ({
+      name: name.replace(/([A-Z])/g, ' $1').trim(), // camelCase to space
+      accuracy: Math.round((s.correct / s.total) * 100),
+      total: s.total
+    }))
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 8);
+
+  return (
+    <div className="space-y-6">
+      <div className="grid sm:grid-cols-2 gap-4">
+        <div className="card p-6">
+          <h3 className="text-sm font-bold uppercase tracking-wider mb-6 text-gray-500 flex items-center gap-2">
+            <Target size={16} className="text-indigo-500" /> Theme Accuracy (%)
+          </h3>
+          <ResponsiveContainer width="100%" height={240}>
+            <BarChart data={themeData} layout="vertical" margin={{ left: -20, right: 20 }}>
+              <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--border)" />
+              <XAxis type="number" domain={[0, 100]} hide />
+              <YAxis dataKey="name" type="category" width={100} tick={{ fontSize: 10, fill: 'var(--text-mid)' }} axisLine={false} tickLine={false} />
+              <Tooltip 
+                cursor={{ fill: 'rgba(0,0,0,0.05)' }}
+                content={({ active, payload }: any) => {
+                  if (active && payload?.[0]) {
+                    const d = payload[0].payload;
+                    return (
+                      <div className="card px-3 py-2 shadow-xl border-none text-xs">
+                        <p className="font-bold mb-1">{d.name}</p>
+                        <p className="text-indigo-600">Accuracy: {d.accuracy}%</p>
+                        <p className="text-gray-400">Total: {d.total}</p>
+                      </div>
+                    );
+                  }
+                  return null;
+                }}
+              />
+              <Bar dataKey="accuracy" fill="#6366f1" radius={[0, 4, 4, 0]} barSize={12} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="card p-6 flex flex-col justify-center items-center text-center">
+          <div className="relative mb-4">
+            <div className="absolute inset-0 bg-orange-100 rounded-full animate-ping opacity-25" />
+            <div className="relative bg-orange-500 text-white p-4 rounded-full shadow-lg">
+              <Flame size={32} />
+            </div>
+          </div>
+          <div className="text-4xl font-display font-black text-orange-600">
+            {stats.daily_streak}
+          </div>
+          <div className="text-sm font-bold text-gray-500 uppercase tracking-widest mt-1">
+            Day Streak
+          </div>
+          <p className="text-xs text-gray-400 mt-4 max-w-[200px]">
+            You've practiced for {stats.days_practiced} days total. Keep it up!
+          </p>
+        </div>
+      </div>
+      
+      <div className="card p-6">
+        <h3 className="text-sm font-bold uppercase tracking-wider mb-4 text-gray-500">Theme Performance Breakdown</h3>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          {themeData.map(t => (
+            <div key={t.name} className="p-3 rounded-xl border border-gray-100 bg-gray-50/50">
+              <div className="text-[10px] font-bold text-gray-400 uppercase truncate mb-1">{t.name}</div>
+              <div className="flex items-end justify-between">
+                <div className="text-lg font-bold text-gray-700">{t.accuracy}%</div>
+                <div className="text-[10px] text-gray-400 mb-0.5">{t.total} tried</div>
+              </div>
+              <div className="w-full h-1 bg-gray-200 rounded-full mt-2 overflow-hidden">
+                <div 
+                  className={`h-full rounded-full ${t.accuracy > 70 ? 'bg-green-500' : t.accuracy > 40 ? 'bg-amber-500' : 'bg-red-500'}`}
+                  style={{ width: `${t.accuracy}%` }} 
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const TABS = [
+    { key: "progress", label: "📊 Progress", count: null },
     { key: "custom", label: "Custom Puzzles", count: customPuzzles.length },
     { key: "mcq", label: "MCQ Quiz", count: mcqs.length },
     { key: "lichess", label: "Lichess Puzzles", count: null },
     { key: "leaderboard", label: "🏆 Leaderboard", count: null },
-  ] as const;
+] as const;
+
 
   return (
     <div className="space-y-5 animate-fade-in">
@@ -862,32 +969,31 @@ export default function PuzzlesPage() {
             className="font-display text-2xl font-bold"
             style={{ color: "#7C3AED" }}
           >
-            {customSolved}
+            {stats?.total || 0}
           </div>
           <div className="text-xs" style={{ color: "var(--text-muted)" }}>
-            Custom Solved
+            Total Attempts
           </div>
         </div>
         <div className="stat-card">
           <div
-            className="font-display text-2xl font-bold"
-            style={{ color: "#1D4ED8" }}
+            className="font-display text-2xl font-bold flex items-center gap-1"
+            style={{ color: "#15803D" }}
           >
-            {mcqCorrect}
+            <CheckCircle2 size={16} /> {stats?.accuracy || 0}%
           </div>
           <div className="text-xs" style={{ color: "var(--text-muted)" }}>
-            MCQs Correct
+            Accuracy
           </div>
         </div>
-        <div className="stat-card">
+        <div className="stat-card text-orange-600">
           <div
-            className="font-display text-2xl font-bold"
-            style={{ color: "var(--amber)" }}
+            className="font-display text-2xl font-bold flex items-center gap-1"
           >
-            {totalScore}
+            <Flame size={18} /> {stats?.daily_streak || 0}
           </div>
           <div className="text-xs" style={{ color: "var(--text-muted)" }}>
-            Total Score
+            Daily Streak
           </div>
         </div>
         <div className="stat-card">
@@ -932,6 +1038,9 @@ export default function PuzzlesPage() {
           </button>
         ))}
       </div>
+
+      {/* ── PROGRESS TAB ── */}
+      {tab === "progress" && <PuzzleProgressTab />}
 
       {/* ── CUSTOM PUZZLES TAB ── */}
       {tab === "custom" &&

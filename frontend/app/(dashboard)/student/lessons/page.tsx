@@ -23,6 +23,8 @@ import {
   Tag,
   TrendingUp,
 } from "lucide-react";
+import InteractiveStudyBoard from "@/components/chess/InteractiveStudyBoard";
+
 
 // ─── Level config ─────────────────────────────────────────────
 const LEVEL_CFG: Record<string, { color: string; bg: string; stars: number }> =
@@ -135,7 +137,6 @@ function PgnViewer({ pgn }: { pgn: string }) {
   );
 }
 
-// ─── Lesson detail modal (student view) ───────────────────────
 function LessonModal({
   lesson,
   isDone,
@@ -242,7 +243,7 @@ function LessonModal({
           </a>
         )}
 
-        {/* PGN */}
+        {/* PGN / Interactive Board */}
         {lesson.pgn && (
           <div>
             <h4
@@ -250,9 +251,9 @@ function LessonModal({
               style={{ color: "var(--text)" }}
             >
               <BookOpen size={14} style={{ color: "var(--amber)" }} />
-              Game Moves
+              Interactive Study
             </h4>
-            <PgnViewer pgn={lesson.pgn} />
+            <InteractiveStudyBoard pgn={lesson.pgn} onComplete={onComplete} />
           </div>
         )}
 
@@ -289,6 +290,7 @@ function LessonModal({
     </Modal>
   );
 }
+
 
 // ─── Main page ────────────────────────────────────────────────
 export default function LessonsPage() {

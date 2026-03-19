@@ -9,7 +9,8 @@ export class PuzzleService {
   static async getStats(userId: string) {
     const attempts = await prisma.puzzleAttempt.findMany({
       where: { user_id: userId },
-      select: { is_correct: true, attempted_at: true },
+      include: { puzzle: { select: { themes: true } } },
+      orderBy: { attempted_at: "desc" },
     });
 
     if (attempts.length === 0) {
@@ -18,28 +19,62 @@ export class PuzzleService {
         correct: 0,
         accuracy: 0,
         days_practiced: 0,
+        daily_streak: 0,
         last_attempted: null,
+        theme_stats: {},
       };
     }
 
     const total = attempts.length;
-    const correct = attempts.filter((a) => a.is_correct).length;
+    const correctAttempts = attempts.filter((a) => a.is_correct);
+    const correct = correctAttempts.length;
     const accuracy = ((correct / total) * 100).toFixed(1);
-    const daysPracticed = new Set(
-      attempts.map((a) => a.attempted_at?.toISOString().split("T")[0]),
-    ).size;
-    const lastAttempted = attempts.reduce(
-      (max, a) =>
-        a.attempted_at && (!max || a.attempted_at > max) ? a.attempted_at : max,
-      null as Date | null,
-    );
+
+    // Calculate days practiced and streak
+    const dates = attempts
+      .map((a) => a.attempted_at?.toISOString().split("T")[0])
+      .filter(Boolean) as string[];
+    const uniqueDates = Array.from(new Set(dates)).sort().reverse();
+    const daysPracticed = uniqueDates.length;
+
+    let dailyStreak = 0;
+    if (uniqueDates.length > 0) {
+      const today = new Date().toISOString().split("T")[0];
+      const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
+      
+      if (uniqueDates[0] === today || uniqueDates[0] === yesterday) {
+        dailyStreak = 1;
+        for (let i = 0; i < uniqueDates.length - 1; i++) {
+          const d1 = new Date(uniqueDates[i]);
+          const d2 = new Date(uniqueDates[i+1]);
+          const diff = (d1.getTime() - d2.getTime()) / 86400000;
+          if (diff <= 1.1) { // allow for small floating point diffs
+            dailyStreak++;
+          } else {
+            break;
+          }
+        }
+      }
+    }
+
+    // Theme breakdown
+    const themeStats: Record<string, { total: number; correct: number }> = {};
+    attempts.forEach((a) => {
+      a.puzzle.themes.forEach((theme) => {
+        if (!themeStats[theme]) themeStats[theme] = { total: 0, correct: 0 };
+        themeStats[theme].total++;
+        if (a.is_correct) themeStats[theme].correct++;
+      });
+    });
 
     return {
       total,
       correct,
       accuracy,
       days_practiced: daysPracticed,
-      last_attempted: lastAttempted,
+      daily_streak: dailyStreak,
+      last_attempted: attempts[0].attempted_at,
+      theme_stats: themeStats,
     };
   }
 

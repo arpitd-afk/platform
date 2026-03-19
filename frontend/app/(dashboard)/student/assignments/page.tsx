@@ -21,6 +21,8 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import InteractiveStudyBoard from "@/components/chess/InteractiveStudyBoard";
+
 
 // ─── Type config ──────────────────────────────────────────────
 const TYPE_CFG: Record<string, { color: string; bg: string; icon: any }> = {
@@ -70,7 +72,17 @@ function GradeCard({
 }
 
 // ─── Submit modal ─────────────────────────────────────────────
-function SubmitModal({
+// ─── PGN helper ───────────────────────────────────────────────
+function extractPgn(text: string): string | null {
+  if (!text) return null;
+  // Look for something that looks like PGN (starts with [Event or 1. d4)
+  const pgnPattern = /(?:\[Event\s+".*?"\][\s\S]*?\d+\.\s+.*)|(?:\d+\.\s+[A-Za-z0-9#+!-]+\s+.*)/g;
+  const match = text.match(pgnPattern);
+  return match ? match[0] : null;
+}
+
+// ─── Solver modal ─────────────────────────────────────────────
+function AssignmentSolverModal({
   assignment,
   onClose,
 }: {
@@ -80,11 +92,18 @@ function SubmitModal({
   const submit = useSubmitAssignment();
   const [note, setNote] = useState("");
   const [link, setLink] = useState("");
+  const pgn = extractPgn(assignment.description || "");
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (extraNote?: string) => {
+    const finalNote = extraNote ? `${note}\n\n${extraNote}`.trim() : note;
     await submit.mutateAsync({
       id: assignment.id,
-      submission: { note, link, submittedAt: new Date().toISOString() },
+      submission: { 
+        note: finalNote, 
+        link, 
+        submittedAt: new Date().toISOString(),
+        solved_interactively: !!extraNote
+      },
     });
     onClose();
   };
@@ -93,120 +112,94 @@ function SubmitModal({
   const Icon = cfg.icon;
 
   return (
-    <Modal title="Submit Assignment" onClose={onClose}>
-      <div className="space-y-5" style={{ minWidth: "min(420px, 90vw)" }}>
-        {/* Assignment info */}
-        <div
-          className="flex items-center gap-3 p-4 rounded-xl"
-          style={{ background: "var(--bg-subtle)" }}
-        >
-          <div
-            className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-            style={{ background: cfg.bg }}
-          >
+    <Modal title={pgn ? "Solve Assignment" : "Submit Assignment"} onClose={onClose}>
+      <div className="space-y-5" style={{ minWidth: "min(600px, 92vw)" }}>
+        {/* Header */}
+        <div className="flex items-center gap-3 p-4 rounded-xl" style={{ background: "var(--bg-subtle)" }}>
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: cfg.bg }}>
             <Icon size={18} style={{ color: cfg.color }} />
           </div>
-          <div>
-            <div
-              className="font-semibold text-sm"
-              style={{ color: "var(--text)" }}
-            >
-              {assignment.title}
-            </div>
-            {assignment.due_date && (
-              <div
-                className="text-xs mt-0.5 flex items-center gap-1"
-                style={{ color: "var(--text-muted)" }}
-              >
-                <Clock size={10} />
-                Due{" "}
-                {new Date(assignment.due_date).toLocaleDateString("en-IN", {
-                  day: "numeric",
-                  month: "short",
-                  year: "numeric",
-                })}
-              </div>
-            )}
+          <div className="flex-1">
+            <div className="font-semibold text-sm" style={{ color: "var(--text)" }}>{assignment.title}</div>
+            <div className="text-[10px] mt-0.5 text-gray-400 font-medium uppercase tracking-wider">{assignment.type}</div>
           </div>
+          {assignment.due_date && (
+            <div className="text-right">
+              <div className="text-[10px] text-gray-400 uppercase font-bold tracking-tight">Due Date</div>
+              <div className="text-xs font-semibold text-red-600">{new Date(assignment.due_date).toLocaleDateString()}</div>
+            </div>
+          )}
         </div>
 
-        {/* Assignment instructions */}
-        {assignment.description && (
-          <div
-            className="text-sm p-3 rounded-xl"
-            style={{
-              background: "rgba(200,150,30,0.05)",
-              border: "1px solid rgba(200,150,30,0.15)",
-            }}
-          >
-            <p
-              className="text-xs font-semibold mb-1"
-              style={{ color: "var(--amber)" }}
-            >
-              Instructions
+        {/* Interactive content */}
+        {pgn ? (
+          <div className="card p-4 bg-gray-50/50">
+            <h4 className="text-xs font-bold text-gray-500 uppercase mb-3 flex items-center gap-2">
+              <Swords size={12} className="text-indigo-500" /> Interactive Solver
+            </h4>
+            <InteractiveStudyBoard 
+              pgn={pgn} 
+              onComplete={() => {
+                handleSubmit("Solved correctly via interactive board.");
+              }} 
+            />
+            <p className="text-[10px] text-gray-400 mt-3 text-center">
+              Solve the puzzle on the board to complete automatically, or use the form below.
             </p>
+          </div>
+        ) : assignment.description && (
+          <div className="text-sm p-4 rounded-xl border border-amber-100 bg-amber-50/30">
+            <p className="text-xs font-bold text-amber-600 uppercase mb-1">Instructions</p>
             <p style={{ color: "var(--text-mid)" }}>{assignment.description}</p>
           </div>
         )}
 
-        <div>
-          <label className="label">Your Notes / Answer</label>
-          <textarea
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            className="input resize-none h-28"
-            placeholder="Describe your approach, add your analysis, or paste a PGN..."
-            autoFocus
-          />
-        </div>
-
-        <div>
-          <label className="label">Link (optional)</label>
-          <input
-            value={link}
-            onChange={(e) => setLink(e.target.value)}
-            className="input"
-            placeholder="Lichess.org game link, Lichess study, etc."
-          />
-        </div>
-
-        <div
-          className="text-xs p-3 rounded-xl flex items-start gap-2"
-          style={{ background: "var(--bg-subtle)" }}
-        >
-          <Star
-            size={12}
-            className="flex-shrink-0 mt-0.5"
-            style={{ color: "var(--amber)" }}
-          />
-          <span style={{ color: "var(--text-muted)" }}>
-            Passing score:{" "}
-            <strong style={{ color: "var(--text)" }}>
-              {assignment.passing_score || 70}/100
-            </strong>
-            . Max attempts:{" "}
-            <strong style={{ color: "var(--text)" }}>
-              {assignment.max_attempts || 3}
-            </strong>
-            .
-          </span>
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div>
+            <label className="label">Submission Notes</label>
+            <textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              className="input resize-none h-32 text-sm"
+              placeholder="Your answer, analysis, or any feedback for the coach..."
+            />
+          </div>
+          <div className="space-y-4">
+            <div>
+              <label className="label">Link (Optional)</label>
+              <input
+                value={link}
+                onChange={(e) => setLink(e.target.value)}
+                className="input text-sm"
+                placeholder="Lichess game or study link"
+              />
+            </div>
+            <div className="p-4 rounded-xl bg-gray-50 border border-gray-100">
+               <div className="flex items-center gap-2 mb-2">
+                 <Award size={14} className="text-amber-500" />
+                 <span className="text-xs font-bold text-gray-600">Passing Needs</span>
+               </div>
+               <div className="flex justify-between items-center text-xs">
+                 <span className="text-gray-400">Target Score:</span>
+                 <span className="font-bold text-gray-700">{assignment.passing_score || 70}/100</span>
+               </div>
+               <div className="flex justify-between items-center text-xs mt-1">
+                 <span className="text-gray-400">Max Attempts:</span>
+                 <span className="font-bold text-gray-700">{assignment.max_attempts || 3}</span>
+               </div>
+            </div>
+          </div>
         </div>
 
         <div className="flex gap-3">
-          <button onClick={onClose} className="btn-secondary flex-1">
-            Cancel
-          </button>
+          <button onClick={onClose} className="btn-secondary flex-1">Cancel</button>
           <button
-            onClick={handleSubmit}
+            onClick={() => handleSubmit()}
             disabled={submit.isPending}
             className="btn-primary flex-1 flex items-center justify-center gap-2"
           >
-            {submit.isPending ? (
-              <Loader2 size={14} className="animate-spin" />
-            ) : (
-              <Upload size={14} />
-            )}
-            {submit.isPending ? "Submitting..." : "Submit"}
+            {submit.isPending ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
+            {submit.isPending ? "Submitting..." : "Submit Assignment"}
           </button>
         </div>
       </div>
@@ -270,7 +263,7 @@ export default function StudentAssignmentsPage() {
   return (
     <div className="space-y-5 animate-fade-in">
       {submitTarget && (
-        <SubmitModal
+        <AssignmentSolverModal
           assignment={submitTarget}
           onClose={() => setSubmitTarget(null)}
         />
@@ -582,6 +575,15 @@ export default function StudentAssignmentsPage() {
                           style={{ background: "#DBEAFE", color: "#1D4ED8" }}
                         >
                           ⏳ Awaiting grade
+                        </span>
+                      )}
+                      {extractPgn(a.description || "") && (
+                        <span
+                          className="badge text-xs flex items-center gap-1"
+                          style={{ background: "#F5F3FF", color: "#7C3AED" }}
+                        >
+                          <Swords size={9} />
+                          Interactive
                         </span>
                       )}
                     </div>
