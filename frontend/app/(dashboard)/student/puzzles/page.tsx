@@ -915,7 +915,7 @@ function PuzzleProgressTab() {
             Day Streak
           </div>
           <p className="text-xs text-gray-400 mt-4 max-w-[200px]">
-            You've practiced for {stats.days_practiced} days total. Keep it up!
+            You&apos;ve practiced for {stats.days_practiced} days total. Keep it up!
           </p>
         </div>
       </div>
